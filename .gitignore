@@ -39,3 +39,26 @@ _*.py
 backups/
 
 backups/
+
+# デバッグ用一時スクリプト
+deploy/scripts/check_pat.ps1
+deploy/scripts/check_repos.bat
+deploy/scripts/check_ssh_keys.bat
+deploy/scripts/check_user.ps1
+deploy/scripts/create_repo.ps1
+deploy/scripts/diag.ps1
+deploy/scripts/gen_ssh.ps1
+deploy/scripts/gen_ssh2.ps1
+deploy/scripts/gen_github_key.bat
+deploy/scripts/list_repos.bat
+deploy/scripts/push_credential.bat
+deploy/scripts/push_direct.ps1
+deploy/scripts/setup_ssh_push.ps1
+deploy/scripts/show_pubkey.ps1
+deploy/scripts/ssh_test.bat
+deploy/scripts/ssh_test2.bat
+deploy/scripts/verify_key.bat
+deploy/scripts/git_push.ps1
+deploy/scripts/pat_curl_test.ps1
+deploy/scripts/pat_len.ps1
+deploy/scripts/git_commit_push.bat
