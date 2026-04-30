@@ -1,0 +1,403 @@
+{% extends "base.html" %}
+{% block title %}通知設定{% endblock %}
+{% block page_title %}<i class="fa-solid fa-bell"></i> メール通知設定{% endblock %}
+
+{% block head %}
+<style>
+  .notif-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .notif-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:20px; }
+  .notif-card h3 { font-size:14px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+  .toggle-row { display:flex; align-items:center; justify-content:space-between; margin-bottom:10px; }
+  .toggle-row label { font-size:13px; color:#475569; }
+
+  /* Toggle switch */
+  .switch { position:relative; display:inline-block; width:42px; height:24px; }
+  .switch input { opacity:0; width:0; height:0; }
+  .slider { position:absolute; cursor:pointer; inset:0; background:#cbd5e1; border-radius:24px; transition:.3s; }
+  .slider:before { content:''; position:absolute; height:18px; width:18px; left:3px; bottom:3px; background:#fff; border-radius:50%; transition:.3s; }
+  input:checked + .slider { background:#f97316; }
+  input:checked + .slider:before { transform:translateX(18px); }
+
+  .stat-row { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+  .stat-box { flex:1; min-width:100px; background:#fff; border:1px solid #e2e8f0; border-radius:10px;
+              padding:14px; text-align:center; }
+  .stat-num  { font-size:26px; font-weight:800; color:#1e293b; }
+  .stat-label{ font-size:11px; color:#94a3b8; margin-top:3px; }
+
+  .mail-status { display:flex; align-items:center; gap:8px; padding:10px 14px;
+                 border-radius:10px; margin-bottom:16px; font-size:13px; }
+  .mail-status.on  { background:#dcfce7; color:#166534; border:1px solid #bbf7d0; }
+  .mail-status.off { background:#fef2f2; color:#dc2626; border:1px solid #fecaca; }
+  .mail-status.cfg { background:#fff7ed; color:#c2410c; border:1px solid #fed7aa; }
+
+  .log-table td, .log-table th { font-size:12px; }
+  .badge-sent   { background:#dcfce7; color:#166534; }
+  .badge-failed { background:#fef2f2; color:#dc2626; }
+  .badge-disabled{background:#f1f5f9; color:#64748b; }
+
+  @media(max-width:768px){ .notif-grid{ grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Mail status banner -->
+<div id="mailStatusBanner" class="mail-status off">
+  <i class="fa-solid fa-circle-xmark"></i> 読み込み中...
+</div>
+
+<!-- Stats -->
+<div class="stat-row">
+  <div class="stat-box"><div class="stat-num" id="statTotal">—</div><div class="stat-label">総送信数</div></div>
+  <div class="stat-box"><div class="stat-num" id="statSent" style="color:#22c55e">—</div><div class="stat-label">成功</div></div>
+  <div class="stat-box"><div class="stat-num" id="statFailed" style="color:#ef4444">—</div><div class="stat-label">失敗</div></div>
+  <div class="stat-box"><div class="stat-num" id="statToday" style="color:#f97316">—</div><div class="stat-label">本日</div></div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('settings')">通知設定</button>
+  <button class="tab-btn" onclick="switchTab('smtp')">SMTP設定</button>
+  <button class="tab-btn" onclick="switchTab('log')">送信履歴</button>
+</div>
+
+<!-- ===== 通知設定タブ ===== -->
+<div id="tab-settings" class="tab-content active">
+  <form id="settingsForm">
+  <div class="notif-grid">
+
+    <!-- KY承認 -->
+    <div class="notif-card">
+      <h3><i class="fa-solid fa-hard-hat text-orange"></i> KY承認通知</h3>
+      <div class="toggle-row">
+        <label>KY記録承認時に通知</label>
+        <label class="switch"><input type="checkbox" name="ky_approve_enabled" value="true"><span class="slider"></span></label>
+      </div>
+      <p style="font-size:12px;color:#94a3b8">KY記録が承認された際に管理者メールへ通知します。</p>
+    </div>
+
+    <!-- 入退場 -->
+    <div class="notif-card">
+      <h3><i class="fa-solid fa-door-open text-blue"></i> 入退場通知</h3>
+      <div class="toggle-row">
+        <label>入退場時に通知</label>
+        <label class="switch"><input type="checkbox" name="attendance_enabled" value="true"><span class="slider"></span></label>
+      </div>
+      <p style="font-size:12px;color:#94a3b8">入退場のたびにメールが送信されます。人数が多い現場ではオフを推奨。</p>
+    </div>
+
+    <!-- 資格期限 -->
+    <div class="notif-card">
+      <h3><i class="fa-solid fa-id-card text-red"></i> 資格期限アラート</h3>
+      <div class="toggle-row">
+        <label>資格期限アラートを有効化</label>
+        <label class="switch"><input type="checkbox" name="cert_expiry_enabled" value="true"><span class="slider"></span></label>
+      </div>
+      <div class="form-group" style="margin-top:10px">
+        <label style="font-size:12px;color:#64748b">何日前からアラートを出すか</label>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <input type="number" name="cert_expiry_days" min="7" max="180" value="30"
+                 style="width:80px;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:14px">
+          <span style="font-size:13px;color:#64748b">日前</span>
+        </div>
+      </div>
+      <div style="margin-top:12px">
+        <button type="button" class="btn btn-sm btn-secondary" onclick="runCertCheck()">
+          <i class="fa-solid fa-rotate"></i> 今すぐチェック
+        </button>
+      </div>
+    </div>
+
+    <!-- 日次レポート -->
+    <div class="notif-card">
+      <h3><i class="fa-solid fa-chart-line text-green"></i> 日次サマリーレポート</h3>
+      <div class="toggle-row">
+        <label>毎朝レポートを送信</label>
+        <label class="switch"><input type="checkbox" name="daily_report_enabled" value="true"><span class="slider"></span></label>
+      </div>
+      <div class="form-group" style="margin-top:10px">
+        <label style="font-size:12px;color:#64748b">送信時刻</label>
+        <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+          <input type="number" name="daily_report_hour" min="0" max="23" value="8"
+                 style="width:70px;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:14px">
+          <span style="font-size:13px;color:#64748b">時（24時間表記）</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- 管理者メール / サイトURL -->
+    <div class="notif-card" style="grid-column:1/-1">
+      <h3><i class="fa-solid fa-users text-purple"></i> 通知先・システム設定</h3>
+      <div class="form-group" style="margin-bottom:12px">
+        <label style="font-size:12px;color:#64748b">管理者メールアドレス（カンマ区切りで複数指定可）</label>
+        <input type="text" name="admin_emails" placeholder="admin@example.com, manager@example.com"
+               style="width:100%;margin-top:4px">
+      </div>
+      <div class="form-group">
+        <label style="font-size:12px;color:#64748b">サイトURL（メール内のリンクに使用）</label>
+        <input type="text" name="site_url" placeholder="https://buildee.example.com"
+               style="width:100%;margin-top:4px">
+      </div>
+    </div>
+  </div>
+
+  <div style="margin-top:18px;display:flex;gap:10px">
+    <button type="button" class="btn btn-primary" onclick="saveSettings()">
+      <i class="fa-solid fa-save"></i> 設定を保存
+    </button>
+  </div>
+  </form>
+</div>
+
+<!-- ===== SMTP設定タブ ===== -->
+<div id="tab-smtp" class="tab-content">
+  <div class="notif-card" style="max-width:600px">
+    <h3><i class="fa-solid fa-envelope-open-text text-orange"></i> SMTP接続設定</h3>
+    <p style="font-size:12px;color:#94a3b8;margin-bottom:16px">
+      設定は <code>.env</code> ファイルで管理されます。変更後はアプリを再起動してください。
+    </p>
+    <div id="smtpInfo" style="font-size:13px">読み込み中...</div>
+
+    <div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px">
+      <h4 style="font-size:13px;font-weight:700;margin-bottom:10px">テストメール送信</h4>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input type="email" id="testMailTo" placeholder="test@example.com"
+               style="flex:1;padding:8px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:14px">
+        <button class="btn btn-primary btn-sm" onclick="sendTestMail()">
+          <i class="fa-solid fa-paper-plane"></i> 送信
+        </button>
+      </div>
+      <div id="testMailResult" style="margin-top:8px;font-size:13px"></div>
+    </div>
+
+    <div style="margin-top:20px;border-top:1px solid #e2e8f0;padding-top:16px">
+      <h4 style="font-size:13px;font-weight:700;margin-bottom:8px">
+        <i class="fa-solid fa-book text-blue"></i> 設定例（.env）
+      </h4>
+      <div class="smtp-preset-btns" style="display:flex;gap:8px;margin-bottom:10px;flex-wrap:wrap">
+        <button class="btn btn-sm btn-secondary" onclick="showPreset('gmail')">Gmail</button>
+        <button class="btn btn-sm btn-secondary" onclick="showPreset('outlook')">Outlook/M365</button>
+        <button class="btn btn-sm btn-secondary" onclick="showPreset('sendgrid')">SendGrid</button>
+        <button class="btn btn-sm btn-secondary" onclick="showPreset('local')">社内SMTP</button>
+      </div>
+      <pre id="smtpPreset" style="background:#1a1a2e;color:#e2e8f0;padding:14px;border-radius:10px;font-size:12px;overflow-x:auto;display:none"></pre>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 送信履歴タブ ===== -->
+<div id="tab-log" class="tab-content">
+  <div style="margin-bottom:12px;display:flex;gap:8px">
+    <button class="btn btn-sm btn-secondary" onclick="loadLog()">
+      <i class="fa-solid fa-rotate"></i> 更新
+    </button>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table log-table" id="logTable">
+      <thead><tr><th>日時</th><th>種別</th><th>件名</th><th>宛先</th><th>状態</th></tr></thead>
+      <tbody id="logBody"><tr><td colspan="5" style="text-align:center;color:#94a3b8">読み込み中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+const PRESETS = {
+  gmail: `MAIL_ENABLED=true
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USE_TLS=true
+SMTP_USE_SSL=false
+SMTP_USER=your@gmail.com
+SMTP_PASSWORD=xxxx_xxxx_xxxx_xxxx  # Googleアプリパスワード(16桁)
+SMTP_FROM=BuildeeMgr <your@gmail.com>`,
+  outlook: `MAIL_ENABLED=true
+SMTP_HOST=smtp.office365.com
+SMTP_PORT=587
+SMTP_USE_TLS=true
+SMTP_USE_SSL=false
+SMTP_USER=your@company.com
+SMTP_PASSWORD=your_password
+SMTP_FROM=BuildeeMgr <your@company.com>`,
+  sendgrid: `MAIL_ENABLED=true
+SMTP_HOST=smtp.sendgrid.net
+SMTP_PORT=587
+SMTP_USE_TLS=true
+SMTP_USER=apikey
+SMTP_PASSWORD=SG.xxxxxxxxxxxxxxxx  # SendGrid APIキー
+SMTP_FROM=BuildeeMgr <noreply@yourdomain.com>`,
+  local: `MAIL_ENABLED=true
+SMTP_HOST=192.168.1.10   # 社内SMTPサーバーIP
+SMTP_PORT=25
+SMTP_USE_TLS=false
+SMTP_USE_SSL=false
+SMTP_USER=               # 認証なしの場合は空
+SMTP_PASSWORD=
+SMTP_FROM=buildee@company.local`,
+};
+
+const TYPE_LABELS = {
+  ky_approved:           { label:'KY承認',     color:'#10b981' },
+  attendance_checkin:    { label:'入場',        color:'#3b82f6' },
+  attendance_checkout:   { label:'退場',        color:'#ef4444' },
+  cert_expiry_alert:     { label:'資格期限',    color:'#f97316' },
+  daily_report:          { label:'日次レポート', color:'#6366f1' },
+  system_error:          { label:'エラー',      color:'#dc2626' },
+};
+
+// ---- Init ----
+window.addEventListener('DOMContentLoaded', () => {
+  loadMailStatus();
+  loadSettings();
+  loadLog();
+});
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'smtp') loadSmtpInfo();
+}
+
+// ---- Mail status ----
+async function loadMailStatus() {
+  try {
+    const res  = await fetch('/api/notifications/mail-status');
+    const data = await res.json();
+    const el   = document.getElementById('mailStatusBanner');
+    if (!data.enabled) {
+      el.className = 'mail-status off';
+      el.innerHTML = '<i class="fa-solid fa-circle-xmark"></i> メール通知: <strong>無効</strong> — .env の MAIL_ENABLED=true に変更すると有効になります';
+    } else if (!data.configured) {
+      el.className = 'mail-status cfg';
+      el.innerHTML = '<i class="fa-solid fa-triangle-exclamation"></i> メール通知: <strong>有効</strong>ですが SMTP 設定が不完全です';
+    } else {
+      el.className = 'mail-status on';
+      el.innerHTML = `<i class="fa-solid fa-circle-check"></i> メール通知: <strong>有効</strong> — ${data.host}:${data.port} (${data.user})`;
+    }
+  } catch(e) { console.error(e); }
+}
+
+// ---- Settings ----
+async function loadSettings() {
+  const res  = await fetch('/api/notifications/settings');
+  const data = await res.json();
+  // Checkboxes
+  ['ky_approve_enabled','attendance_enabled','cert_expiry_enabled','daily_report_enabled'].forEach(k => {
+    const el = document.querySelector(`[name="${k}"]`);
+    if (el) el.checked = (data[k] === 'true');
+  });
+  // Inputs
+  ['cert_expiry_days','daily_report_hour','admin_emails','site_url'].forEach(k => {
+    const el = document.querySelector(`[name="${k}"]`);
+    if (el && data[k] !== undefined) el.value = data[k];
+  });
+  // Stats
+  await loadStats();
+}
+
+async function loadStats() {
+  try {
+    const res  = await fetch('/api/notifications/log?limit=1');
+    const data = await res.json();
+    const s    = data.stats;
+    document.getElementById('statTotal').textContent  = s.total;
+    document.getElementById('statSent').textContent   = s.sent;
+    document.getElementById('statFailed').textContent = s.failed;
+    document.getElementById('statToday').textContent  = s.today;
+  } catch(e) {}
+}
+
+async function saveSettings() {
+  const body = {};
+  document.querySelectorAll('#settingsForm [name]').forEach(el => {
+    if (el.type === 'checkbox') body[el.name] = el.checked ? 'true' : 'false';
+    else body[el.name] = el.value;
+  });
+  const res = await fetch('/api/notifications/settings', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+  });
+  if (res.ok) { showToast('通知設定を保存しました', 'success'); await loadMailStatus(); }
+  else showToast('保存に失敗しました', 'error');
+}
+
+// ---- SMTP info ----
+async function loadSmtpInfo() {
+  const res  = await fetch('/api/notifications/mail-status');
+  const d    = await res.json();
+  document.getElementById('smtpInfo').innerHTML = `
+    <table class="data-table" style="margin:0">
+      <tr><th>有効</th><td><span class="badge ${d.enabled?'green':'gray'}">${d.enabled?'有効':'無効'}</span></td></tr>
+      <tr><th>SMTPホスト</th><td>${d.host}:${d.port}</td></tr>
+      <tr><th>ユーザー</th><td>${d.user||'—'}</td></tr>
+      <tr><th>送信元</th><td>${d.from||'—'}</td></tr>
+      <tr><th>TLS</th><td>${d.use_tls?'STARTTLS':'なし'}</td></tr>
+      <tr><th>SSL</th><td>${d.use_ssl?'SSL (port 465)':'なし'}</td></tr>
+      <tr><th>設定状態</th><td><span class="badge ${d.configured?'green':'red'}">${d.configured?'設定済み':'未設定'}</span></td></tr>
+    </table>`;
+}
+
+function showPreset(type) {
+  const el = document.getElementById('smtpPreset');
+  el.textContent = PRESETS[type];
+  el.style.display = 'block';
+}
+
+// ---- Test mail ----
+async function sendTestMail() {
+  const to    = document.getElementById('testMailTo').value.trim();
+  const resEl = document.getElementById('testMailResult');
+  if (!to) { resEl.innerHTML = '<span style="color:#dc2626">宛先を入力してください</span>'; return; }
+  resEl.innerHTML = '<span style="color:#64748b"><i class="fa-solid fa-spinner fa-spin"></i> 送信中...</span>';
+  const res  = await fetch('/api/notifications/test', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({to})
+  });
+  const data = await res.json();
+  if (res.ok && data.status === 'ok')
+    resEl.innerHTML = `<span style="color:#22c55e"><i class="fa-solid fa-circle-check"></i> ${data.message}</span>`;
+  else if (data.status === 'disabled')
+    resEl.innerHTML = `<span style="color:#f97316"><i class="fa-solid fa-triangle-exclamation"></i> ${data.message}</span>`;
+  else
+    resEl.innerHTML = `<span style="color:#dc2626"><i class="fa-solid fa-circle-xmark"></i> ${data.message}</span>`;
+}
+
+// ---- Cert check ----
+async function runCertCheck() {
+  const res  = await fetch('/api/notifications/run-cert-check', {method:'POST'});
+  const data = await res.json();
+  showToast(data.message, 'info');
+}
+
+// ---- Log ----
+async function loadLog() {
+  const res  = await fetch('/api/notifications/log?limit=100');
+  const data = await res.json();
+  const tbody = document.getElementById('logBody');
+  if (!data.log || data.log.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="5" style="text-align:center;color:#94a3b8">送信履歴がありません</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.log.map(r => {
+    const ti  = TYPE_LABELS[r.event_type] || {label: r.event_type, color:'#64748b'};
+    const sc  = r.status === 'sent' ? 'badge-sent' : r.status === 'disabled' ? 'badge-disabled' : 'badge-failed';
+    const sl  = r.status === 'sent' ? '成功' : r.status === 'disabled' ? '無効' : '失敗';
+    const err = r.error_msg ? `<br><span style="color:#dc2626;font-size:11px">${r.error_msg}</span>` : '';
+    return `<tr>
+      <td class="text-muted">${r.created_at}</td>
+      <td><span class="badge" style="background:${ti.color}20;color:${ti.color}">${ti.label}</span></td>
+      <td>${r.subject}${err}</td>
+      <td class="text-muted" style="font-size:11px">${r.recipients}</td>
+      <td><span class="badge ${sc}">${sl}</span></td>
+    </tr>`;
+  }).join('');
+  // Update stats
+  const s = data.stats;
+  document.getElementById('statTotal').textContent  = s.total;
+  document.getElementById('statSent').textContent   = s.sent;
+  document.getElementById('statFailed').textContent = s.failed;
+  document.getElementById('statToday').textContent  = s.today;
+}
+</script>
+{% endblock %}

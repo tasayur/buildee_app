@@ -1,0 +1,55 @@
+# ================================================================
+#  .dockerignore -- ビルドコンテキストから除外するファイル
+# ================================================================
+
+# 秘密情報（本番は環境変数・Secretsで管理）
+.env
+certs/
+*.key
+*.pem
+
+# DB（volume でマウント）
+buildee.db
+buildee.db-wal
+buildee.db-shm
+data/
+
+# バックアップ（volume でマウント）
+backups/
+
+# Python キャッシュ
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+
+# 仮想環境
+.venv/
+venv/
+env/
+
+# テスト・開発用
+test_*.py
+_*.py
+*.backup
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Git
+.git/
+.gitignore
+
+# CI
+.github/
+
+# ドキュメント
+*.md
+docs/

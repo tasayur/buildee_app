@@ -1,0 +1,578 @@
+{% extends "base.html" %}
+{% block title %}QRゲート{% endblock %}
+{% block page_title %}<i class="fa-solid fa-qrcode"></i> QRコード入退場{% endblock %}
+
+{% block head %}
+<style>
+/* ===== QR Gate page ===== */
+.qr-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+/* --- Scanner panel --- */
+.scanner-panel {
+  background: #fff; border-radius: 16px; padding: 20px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+  display: flex; flex-direction: column; gap: 16px;
+}
+.scanner-panel h3 { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin: 0; }
+
+.video-wrap {
+  position: relative; border-radius: 14px; overflow: hidden;
+  background: #0f172a; aspect-ratio: 1/1;
+}
+#qrVideo { width: 100%; height: 100%; object-fit: cover; display: block; }
+#qrCanvas { display: none; }
+
+/* scan overlay */
+.scan-overlay {
+  position: absolute; inset: 0; pointer-events: none;
+  display: flex; align-items: center; justify-content: center;
+}
+.scan-frame {
+  width: 60%; aspect-ratio: 1/1;
+  border: 3px solid rgba(249,115,22,0.8);
+  border-radius: 14px; box-shadow: 0 0 0 9999px rgba(0,0,0,0.35);
+  animation: scanPulse 2s ease-in-out infinite;
+}
+@keyframes scanPulse { 0%,100%{border-color:rgba(249,115,22,0.6)} 50%{border-color:rgba(249,115,22,1)} }
+
+.scan-line {
+  position: absolute; left: 20%; right: 20%; height: 2px;
+  background: linear-gradient(90deg, transparent, #f97316, transparent);
+  animation: scanLine 2s linear infinite;
+}
+@keyframes scanLine {
+  0%   { top: 20%; }
+  50%  { top: 78%; }
+  100% { top: 20%; }
+}
+
+.cam-controls { display: flex; gap: 8px; flex-wrap: wrap; }
+.cam-btn {
+  flex: 1; min-width: 100px; padding: 10px 14px; border: none; border-radius: 10px;
+  font-size: 13px; font-weight: 600; cursor: pointer; display: flex;
+  align-items: center; justify-content: center; gap: 6px; transition: all 0.2s;
+}
+.cam-btn.start  { background: #1a1a2e; color: #fff; }
+.cam-btn.start:hover  { background: #f97316; }
+.cam-btn.stop   { background: #ef4444; color: #fff; }
+.cam-btn.flip   { background: #f1f5f9; color: #475569; }
+
+.cam-status {
+  text-align: center; font-size: 12px; color: #94a3b8; padding: 4px 0;
+  display: flex; align-items: center; justify-content: center; gap: 6px;
+}
+.cam-status.active  { color: #22c55e; }
+.cam-status.error   { color: #ef4444; }
+
+/* result feedback */
+.scan-result {
+  border-radius: 14px; padding: 18px 20px; display: none;
+  text-align: center; animation: fadeInUp 0.3s ease;
+}
+.scan-result.checkin  { background: #dcfce7; border: 2px solid #22c55e; }
+.scan-result.checkout { background: #f0f9ff; border: 2px solid #3b82f6; }
+.scan-result.error    { background: #fef2f2; border: 2px solid #ef4444; }
+@keyframes fadeInUp { from{transform:translateY(12px);opacity:0} to{transform:translateY(0);opacity:1} }
+.scan-result .sr-icon   { font-size: 40px; margin-bottom: 8px; }
+.scan-result .sr-action { font-size: 13px; font-weight: 700; margin-bottom: 4px; }
+.scan-result .sr-name   { font-size: 20px; font-weight: 800; margin-bottom: 4px; }
+.scan-result .sr-meta   { font-size: 12px; color: #475569; }
+.scan-result .sr-time   { font-size: 18px; font-weight: 700; margin-top: 6px; }
+
+/* manual input fallback */
+.manual-input-wrap {
+  border-top: 1px solid #f1f5f9; padding-top: 14px;
+  display: flex; flex-direction: column; gap: 8px;
+}
+.manual-input-wrap label { font-size: 12px; font-weight: 600; color: #64748b; }
+.manual-row { display: flex; gap: 8px; }
+.manual-row input { flex: 1; border: 1px solid #e2e8f0; border-radius: 8px; padding: 9px 12px; font-size: 14px; }
+.manual-row button { background: #1a1a2e; color: #fff; border: none; border-radius: 8px; padding: 9px 16px; font-size: 13px; font-weight: 600; cursor: pointer; white-space: nowrap; }
+.manual-row button:hover { background: #f97316; }
+
+/* --- Right panel: QR cards + log --- */
+.right-panel { display: flex; flex-direction: column; gap: 20px; }
+
+.qr-cards-panel {
+  background: #fff; border-radius: 16px; padding: 20px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08);
+}
+.qr-cards-panel h3 { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin: 0 0 14px; }
+.worker-qr-list { display: flex; flex-direction: column; gap: 10px; max-height: 400px; overflow-y: auto; }
+.worker-qr-item {
+  display: flex; align-items: center; gap: 12px; padding: 10px 12px;
+  border: 1px solid #e2e8f0; border-radius: 12px; cursor: pointer; transition: all 0.2s;
+}
+.worker-qr-item:hover { background: #f8fafc; border-color: #f97316; }
+.wqi-thumb { width: 56px; height: 56px; border-radius: 8px; border: 1px solid #e2e8f0; flex-shrink: 0; }
+.wqi-info  { flex: 1; }
+.wqi-name  { font-weight: 700; font-size: 14px; }
+.wqi-sub   { font-size: 11px; color: #64748b; margin-top: 2px; }
+.wqi-status { flex-shrink: 0; }
+.wqi-btn   {
+  background: none; border: 1px solid #e2e8f0; border-radius: 8px;
+  padding: 6px 10px; font-size: 11px; cursor: pointer; color: #475569;
+  display: flex; align-items: center; gap: 4px; transition: all 0.15s;
+}
+.wqi-btn:hover { background: #f97316; color: #fff; border-color: #f97316; }
+
+/* scan log */
+.scan-log-panel {
+  background: #fff; border-radius: 16px; padding: 20px;
+  box-shadow: 0 1px 6px rgba(0,0,0,0.08); flex: 1;
+}
+.scan-log-panel h3 { font-size: 15px; font-weight: 700; display: flex; align-items: center; gap: 8px; margin: 0 0 12px; }
+.log-list { display: flex; flex-direction: column; gap: 6px; max-height: 280px; overflow-y: auto; }
+.log-item {
+  display: flex; align-items: center; gap: 10px; padding: 8px 12px;
+  border-radius: 8px; font-size: 13px; background: #f8fafc;
+}
+.log-item.checkin  { background: #f0fdf4; }
+.log-item.checkout { background: #eff6ff; }
+.log-item.error    { background: #fef2f2; }
+.log-item .li-icon { font-size: 16px; flex-shrink: 0; }
+.log-item .li-name { font-weight: 600; flex: 1; }
+.log-item .li-time { color: #94a3b8; font-size: 11px; }
+.log-item .li-badge { flex-shrink: 0; }
+
+/* QR modal */
+.qr-modal { display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.6); z-index: 500; align-items: center; justify-content: center; }
+.qr-modal.open { display: flex; }
+.qr-modal-box {
+  background: #fff; border-radius: 20px; padding: 28px 24px;
+  max-width: 360px; width: 92%; text-align: center;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+  animation: fadeInUp 0.25s ease;
+}
+.qr-modal-box h3 { font-size: 16px; font-weight: 700; margin-bottom: 4px; }
+.qr-modal-box p  { font-size: 12px; color: #64748b; margin-bottom: 16px; }
+#modalQrImg  { width: 200px; height: 200px; border-radius: 12px; border: 3px solid #1a1a2e; }
+.qr-modal-meta { background: #f8fafc; border-radius: 10px; padding: 10px 14px; margin: 14px 0 0; font-size: 12px; color: #475569; text-align: left; }
+.qr-modal-meta strong { color: #1a1a2e; }
+.qr-modal-actions { display: flex; gap: 8px; margin-top: 14px; }
+.qr-modal-actions button { flex: 1; padding: 10px; border: none; border-radius: 10px; font-size: 13px; font-weight: 600; cursor: pointer; }
+.btn-regen { background: #f1f5f9; color: #475569; }
+.btn-regen:hover { background: #e2e8f0; }
+.btn-print { background: #1a1a2e; color: #fff; }
+.btn-print:hover { background: #f97316; }
+.btn-close-modal { background: #f1f5f9; color: #475569; }
+
+@media (max-width: 768px) {
+  .qr-layout { grid-template-columns: 1fr; }
+}
+@media print {
+  .qr-modal-actions, .qr-modal-box h3, .qr-modal-box p { display: none !important; }
+}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Date indicator -->
+<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:16px;flex-wrap:wrap;gap:10px">
+  <div style="display:flex;align-items:center;gap:10px">
+    <div style="background:#1a1a2e;color:#fff;border-radius:10px;padding:8px 16px;font-size:13px;font-weight:600">
+      <i class="fa-solid fa-calendar"></i> 対象日: <span id="todayLabel">{{ today }}</span>
+    </div>
+    <div class="badge green" id="scanCountBadge">スキャン: 0件</div>
+  </div>
+  <div style="display:flex;gap:8px">
+    <button class="btn btn-secondary btn-sm" onclick="loadWorkerQRs()">
+      <i class="fa-solid fa-rotate"></i> 更新
+    </button>
+    <a href="/attendance" class="btn btn-secondary btn-sm">
+      <i class="fa-solid fa-list"></i> 入退場一覧
+    </a>
+  </div>
+</div>
+
+<div class="qr-layout">
+
+  <!-- ===== Left: Scanner ===== -->
+  <div class="scanner-panel">
+    <h3><i class="fa-solid fa-camera text-orange"></i> QRスキャナー</h3>
+
+    <div class="video-wrap">
+      <video id="qrVideo" playsinline autoplay muted></video>
+      <canvas id="qrCanvas"></canvas>
+      <div class="scan-overlay">
+        <div class="scan-frame"></div>
+        <div class="scan-line" id="scanLine"></div>
+      </div>
+    </div>
+
+    <div class="cam-status" id="camStatus">
+      <i class="fa-solid fa-circle" style="font-size:8px"></i> カメラ未起動
+    </div>
+
+    <div class="cam-controls">
+      <button class="cam-btn start" id="startBtn" onclick="startCamera()">
+        <i class="fa-solid fa-play"></i> カメラ起動
+      </button>
+      <button class="cam-btn stop" id="stopBtn" onclick="stopCamera()" style="display:none">
+        <i class="fa-solid fa-stop"></i> 停止
+      </button>
+      <button class="cam-btn flip" id="flipBtn" onclick="flipCamera()" style="display:none">
+        <i class="fa-solid fa-rotate"></i> 反転
+      </button>
+    </div>
+
+    <!-- Scan result feedback -->
+    <div class="scan-result" id="scanResult">
+      <div class="sr-icon" id="srIcon">✅</div>
+      <div class="sr-action" id="srAction"></div>
+      <div class="sr-name" id="srName"></div>
+      <div class="sr-meta" id="srMeta"></div>
+      <div class="sr-time" id="srTime"></div>
+    </div>
+
+    <!-- Manual input fallback -->
+    <div class="manual-input-wrap">
+      <label><i class="fa-solid fa-keyboard"></i> テキスト入力（手動フォールバック）</label>
+      <div class="manual-row">
+        <input type="text" id="manualInput" placeholder="QRペイロードを貼り付け...">
+        <button onclick="scanManual()">打刻</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ===== Right: QR cards + Log ===== -->
+  <div class="right-panel">
+
+    <!-- QR Card List -->
+    <div class="qr-cards-panel">
+      <h3>
+        <i class="fa-solid fa-id-card text-blue"></i> 作業員QRカード
+        <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="bulkGenerate()">
+          <i class="fa-solid fa-wand-magic-sparkles"></i> 一括生成
+        </button>
+      </h3>
+      <div class="worker-qr-list" id="workerQrList">
+        <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i> 読み込み中...</div>
+      </div>
+    </div>
+
+    <!-- Scan Log -->
+    <div class="scan-log-panel">
+      <h3><i class="fa-solid fa-clock-rotate-left text-green"></i> 本日の打刻ログ</h3>
+      <div class="log-list" id="logList">
+        <div class="empty-state" style="padding:20px 0">まだ打刻記録がありません</div>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- QR Modal -->
+<div class="qr-modal" id="qrModal">
+  <div class="qr-modal-box">
+    <h3 id="modalTitle">QRコード</h3>
+    <p id="modalSubtitle">このQRをかざして入退場</p>
+    <img id="modalQrImg" src="" alt="QR Code">
+    <div class="qr-modal-meta" id="modalMeta"></div>
+    <div class="qr-modal-actions">
+      <button class="btn-regen" onclick="regenQR()"><i class="fa-solid fa-rotate"></i> 再生成</button>
+      <button class="btn-print" onclick="printQR()"><i class="fa-solid fa-print"></i> 印刷</button>
+      <button class="btn-close-modal" onclick="closeQrModal()">閉じる</button>
+    </div>
+  </div>
+</div>
+
+{% endblock %}
+
+{% block scripts %}
+<!-- jsQR: browser-side QR decoder (no server needed) -->
+<script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.min.js"></script>
+<script>
+const TODAY       = '{{ today }}';
+let scanCount     = 0;
+let stream        = null;
+let scanInterval  = null;
+let facingMode    = 'environment';   // rear camera default
+let lastScanned   = '';
+let lastScannedAt = 0;
+let currentWorkerForModal = null;
+
+// ================================================================
+// Camera
+// ================================================================
+async function startCamera() {
+  try {
+    if (stream) stopCamera();
+    stream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode, width: { ideal: 1280 }, height: { ideal: 720 } }
+    });
+    const video = document.getElementById('qrVideo');
+    video.srcObject = stream;
+    await video.play();
+    setStatus('active', '<i class="fa-solid fa-circle-dot"></i> スキャン中...');
+    document.getElementById('startBtn').style.display = 'none';
+    document.getElementById('stopBtn').style.display  = 'flex';
+    document.getElementById('flipBtn').style.display  = 'flex';
+    document.getElementById('scanLine').style.display = 'block';
+    scanInterval = setInterval(scanFrame, 200);
+  } catch (e) {
+    setStatus('error', '<i class="fa-solid fa-circle-xmark"></i> カメラアクセスを許可してください');
+    console.error('Camera error:', e);
+  }
+}
+
+function stopCamera() {
+  if (stream) { stream.getTracks().forEach(t => t.stop()); stream = null; }
+  if (scanInterval) { clearInterval(scanInterval); scanInterval = null; }
+  document.getElementById('startBtn').style.display = 'flex';
+  document.getElementById('stopBtn').style.display  = 'none';
+  document.getElementById('flipBtn').style.display  = 'none';
+  document.getElementById('scanLine').style.display = 'none';
+  setStatus('', '<i class="fa-solid fa-circle"></i> カメラ停止');
+}
+
+function flipCamera() {
+  facingMode = facingMode === 'environment' ? 'user' : 'environment';
+  startCamera();
+}
+
+function setStatus(cls, html) {
+  const el = document.getElementById('camStatus');
+  el.className = 'cam-status ' + cls;
+  el.innerHTML = html;
+}
+
+// ================================================================
+// QR Frame scanning (jsQR)
+// ================================================================
+function scanFrame() {
+  const video  = document.getElementById('qrVideo');
+  const canvas = document.getElementById('qrCanvas');
+  if (!video.videoWidth) return;
+  canvas.width  = video.videoWidth;
+  canvas.height = video.videoHeight;
+  const ctx = canvas.getContext('2d');
+  ctx.drawImage(video, 0, 0);
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const code = jsQR(imageData.data, imageData.width, imageData.height, {
+    inversionAttempts: 'dontInvert'
+  });
+  if (code && code.data) {
+    const now = Date.now();
+    if (code.data === lastScanned && now - lastScannedAt < 3000) return;
+    lastScanned   = code.data;
+    lastScannedAt = now;
+    haptic(30);
+    processScan(code.data);
+  }
+}
+
+// ================================================================
+// Scan processing
+// ================================================================
+async function processScan(payload) {
+  setStatus('active', '<i class="fa-solid fa-spinner fa-spin"></i> 処理中...');
+  try {
+    const res  = await fetch('/api/qr/scan', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ payload, date: TODAY })
+    });
+    const data = await res.json();
+    if (data.status === 'ok') {
+      showResult(data);
+      addLog(data);
+      scanCount++;
+      document.getElementById('scanCountBadge').textContent = `スキャン: ${scanCount}件`;
+      setStatus('active', '<i class="fa-solid fa-circle-dot"></i> スキャン中...');
+    } else {
+      showError(data.message || 'エラーが発生しました');
+      setStatus('error', '<i class="fa-solid fa-circle-xmark"></i> ' + (data.message || 'エラー'));
+      setTimeout(() => setStatus('active', '<i class="fa-solid fa-circle-dot"></i> スキャン中...'), 2500);
+    }
+  } catch (e) {
+    showError('通信エラー: ' + e.message);
+    setStatus('error', '<i class="fa-solid fa-wifi"></i> 接続エラー');
+  }
+}
+
+function showResult(data) {
+  const el = document.getElementById('scanResult');
+  const isIn = data.action === 'checkin';
+  el.className = 'scan-result ' + data.action;
+  document.getElementById('srIcon').textContent   = isIn ? '✅' : '👋';
+  document.getElementById('srAction').textContent = isIn ? '入場しました' : '退場しました';
+  document.getElementById('srName').textContent   = data.worker?.name || '';
+  document.getElementById('srMeta').textContent   = `${data.worker?.company || ''} / ${data.worker?.job || ''}`;
+  document.getElementById('srTime').textContent   = data.time || '';
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 4000);
+}
+
+function showError(msg) {
+  const el = document.getElementById('scanResult');
+  el.className = 'scan-result error';
+  document.getElementById('srIcon').textContent   = '❌';
+  document.getElementById('srAction').textContent = 'エラー';
+  document.getElementById('srName').textContent   = msg;
+  document.getElementById('srMeta').textContent   = '';
+  document.getElementById('srTime').textContent   = '';
+  el.style.display = 'block';
+  setTimeout(() => { el.style.display = 'none'; }, 3500);
+}
+
+function scanManual() {
+  const v = document.getElementById('manualInput').value.trim();
+  if (!v) return;
+  processScan(v);
+  document.getElementById('manualInput').value = '';
+}
+document.addEventListener('DOMContentLoaded', () => {
+  document.getElementById('manualInput')?.addEventListener('keydown', e => {
+    if (e.key === 'Enter') scanManual();
+  });
+});
+
+// ================================================================
+// Log
+// ================================================================
+const logs = [];
+function addLog(data) {
+  const isIn = data.action === 'checkin';
+  logs.unshift({
+    action:  data.action,
+    name:    data.worker?.name || '?',
+    company: data.worker?.company || '',
+    time:    data.time || '',
+  });
+  renderLog();
+}
+
+function renderLog() {
+  const el = document.getElementById('logList');
+  if (logs.length === 0) {
+    el.innerHTML = '<div class="empty-state" style="padding:20px 0">まだ打刻記録がありません</div>';
+    return;
+  }
+  el.innerHTML = logs.slice(0, 30).map(l => `
+    <div class="log-item ${l.action}">
+      <span class="li-icon">${l.action === 'checkin' ? '🟢' : '🔵'}</span>
+      <span class="li-name">${l.name}</span>
+      <span class="li-badge"><span class="badge ${l.action === 'checkin' ? 'green' : 'blue'}">${l.action === 'checkin' ? '入場' : '退場'}</span></span>
+      <span class="li-time">${l.time}</span>
+    </div>`).join('');
+}
+
+// ================================================================
+// Worker QR card list
+// ================================================================
+async function loadWorkerQRs() {
+  const el = document.getElementById('workerQrList');
+  el.innerHTML = '<div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i></div>';
+  const workers = await fetch('/api/workers').then(r => r.json());
+  if (workers.length === 0) {
+    el.innerHTML = '<div class="empty-state">作業員が登録されていません<br><a href="/safety">作業員を登録する</a></div>';
+    return;
+  }
+  el.innerHTML = workers.map(w => `
+    <div class="worker-qr-item" onclick="openQrModal('${w.id}')">
+      ${w.qr_token
+        ? `<div class="wqi-thumb" style="background:#f8fafc;display:flex;align-items:center;justify-content:center;color:#22c55e;font-size:22px"><i class="fa-solid fa-qrcode"></i></div>`
+        : `<div class="wqi-thumb" style="background:#fef2f2;display:flex;align-items:center;justify-content:center;color:#94a3b8;font-size:22px"><i class="fa-solid fa-qrcode"></i></div>`}
+      <div class="wqi-info">
+        <div class="wqi-name">${w.name}</div>
+        <div class="wqi-sub">${w.company} / ${w.job || '—'}</div>
+      </div>
+      <div class="wqi-status">
+        ${w.qr_token
+          ? '<span class="badge green">QR発行済</span>'
+          : '<span class="badge gray">未発行</span>'}
+      </div>
+      <button class="wqi-btn" onclick="event.stopPropagation();openQrModal('${w.id}')">
+        <i class="fa-solid fa-qrcode"></i> 表示
+      </button>
+    </div>`).join('');
+}
+
+// ================================================================
+// QR Modal
+// ================================================================
+let modalWorkerId = null;
+
+async function openQrModal(wid) {
+  modalWorkerId = wid;
+  document.getElementById('modalQrImg').src = '';
+  document.getElementById('modalTitle').textContent = '読み込み中...';
+  document.getElementById('qrModal').classList.add('open');
+
+  const res  = await fetch(`/api/qr/worker/${wid}`);
+  const data = await res.json();
+  if (data.status !== 'ok') {
+    showToast('QRの取得に失敗しました', 'error'); closeQrModal(); return;
+  }
+  document.getElementById('modalQrImg').src       = data.qr_b64;
+  document.getElementById('modalTitle').textContent = `${data.worker_name} のQRコード`;
+  document.getElementById('modalSubtitle').textContent = `${data.company}`;
+  document.getElementById('modalMeta').innerHTML = `
+    <strong>氏名:</strong> ${data.worker_name}<br>
+    <strong>会社:</strong> ${data.company}<br>
+    <strong>トークン:</strong> <code style="font-size:10px">${data.token.substring(0,12)}…</code>`;
+  loadWorkerQRs();
+}
+
+function closeQrModal() {
+  document.getElementById('qrModal').classList.remove('open');
+  modalWorkerId = null;
+}
+
+async function regenQR() {
+  if (!modalWorkerId) return;
+  if (!confirm('QRコードを再生成しますか？古いQRは無効になります。')) return;
+  const res  = await fetch(`/api/qr/worker/${modalWorkerId}/regenerate`, { method: 'POST' });
+  const data = await res.json();
+  document.getElementById('modalQrImg').src = data.qr_b64;
+  showToast('QRコードを再生成しました', 'success');
+  loadWorkerQRs();
+}
+
+function printQR() {
+  const img  = document.getElementById('modalQrImg').src;
+  const name = document.getElementById('modalTitle').textContent;
+  const meta = document.getElementById('modalMeta').innerText;
+  const w    = window.open('', '_blank');
+  w.document.write(`
+    <html><head><title>${name}</title>
+    <style>
+      body{font-family:sans-serif;text-align:center;padding:30px}
+      .card{border:2px solid #1a1a2e;border-radius:16px;padding:24px;display:inline-block;min-width:260px}
+      img{width:200px;height:200px;border-radius:8px}
+      h2{margin:12px 0 4px;font-size:18px}
+      p{color:#64748b;font-size:12px;margin:4px 0}
+    </style></head>
+    <body>
+      <div class="card">
+        <img src="${img}">
+        <h2>${name.replace(' のQRコード','')}</h2>
+        <p>${meta.replace(/\n/g,'<br>')}</p>
+        <p style="margin-top:12px;font-size:10px;color:#94a3b8">BuildeeMgr 入退場QRカード</p>
+      </div>
+      <script>window.onload=()=>window.print()<\/script>
+    </body></html>`);
+  w.document.close();
+}
+
+async function bulkGenerate() {
+  const res  = await fetch('/api/qr/bulk-generate', { method: 'POST' });
+  const data = await res.json();
+  showToast(`QR生成完了: ${data.generated}件生成 / 合計${data.total}件`, 'success');
+  loadWorkerQRs();
+}
+
+// Close modal on backdrop
+document.getElementById('qrModal').addEventListener('click', e => {
+  if (e.target === document.getElementById('qrModal')) closeQrModal();
+});
+
+// Cleanup on page leave
+window.addEventListener('beforeunload', stopCamera);
+
+// Init
+loadWorkerQRs();
+</script>
+{% endblock %}

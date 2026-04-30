@@ -1,0 +1,54 @@
+# ================================================================
+#  docker-compose.prod.yml -- 本番環境オーバーライド
+#
+#  使い方:
+#    docker compose -f docker-compose.yml -f docker-compose.prod.yml up -d
+#
+#  または deploy/scripts/deploy.sh を使用（推奨）
+# ================================================================
+version: "3.9"
+
+services:
+
+  flask:
+    image: buildee_app:${IMAGE_TAG:-latest}
+    restart: always
+    deploy:
+      resources:
+        limits:
+          cpus: "2.0"
+          memory: 512M
+        reservations:
+          memory: 128M
+    environment:
+      FLASK_DEBUG: "false"
+      HTTPS_ENABLED: "false"
+      HTTP_REDIRECT: "false"
+      SESSION_COOKIE_SECURE: "true"
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  nginx:
+    restart: always
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "5"
+
+  certbot:
+    image: certbot/certbot
+    container_name: buildee_certbot
+    restart: unless-stopped
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    entrypoint: >
+      /bin/sh -c "trap exit TERM;
+      while :; do
+        certbot renew --webroot -w /var/www/certbot --quiet --deploy-hook 'nginx -s reload';
+        sleep 12h & wait;
+      done"

@@ -1,0 +1,417 @@
+{% extends "base.html" %}
+{% block title %}Excelエクスポート{% endblock %}
+{% block page_title %}<i class="fa-solid fa-file-excel"></i> Excelエクスポート{% endblock %}
+
+{% block head %}
+<style>
+  /* ===== Export page styles ===== */
+  .export-layout { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+
+  /* Quick export cards */
+  .quick-grid {
+    display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px;
+    margin-bottom: 24px;
+  }
+  .quick-card {
+    background: #fff; border-radius: 14px; padding: 20px 16px;
+    text-align: center; box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+    cursor: pointer; transition: all 0.22s; border: 2px solid transparent;
+    display: flex; flex-direction: column; align-items: center; gap: 10px;
+  }
+  .quick-card:hover { transform: translateY(-3px); box-shadow: 0 8px 24px rgba(0,0,0,0.13); border-color: #f97316; }
+  .quick-card.loading { opacity: 0.6; pointer-events: none; }
+  .quick-card i  { font-size: 32px; }
+  .quick-card h4 { font-size: 13px; font-weight: 700; margin: 0; }
+  .quick-card p  { font-size: 11px; color: #64748b; margin: 0; }
+  .quick-card .dl-btn {
+    background: #f97316; color: #fff; border: none; border-radius: 8px;
+    padding: 7px 16px; font-size: 12px; font-weight: 600; cursor: pointer;
+    width: 100%; display: flex; align-items: center; justify-content: center; gap: 6px;
+  }
+
+  /* Custom export panel */
+  .export-panel {
+    background: #fff; border-radius: 14px; padding: 22px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  .export-panel h3 {
+    font-size: 15px; font-weight: 700; margin-bottom: 16px;
+    display: flex; align-items: center; gap: 8px;
+  }
+  .sheet-checks { display: flex; flex-direction: column; gap: 10px; margin-bottom: 18px; }
+  .sheet-check {
+    display: flex; align-items: center; gap: 10px;
+    padding: 10px 14px; border-radius: 10px; border: 1px solid #e2e8f0;
+    cursor: pointer; transition: background 0.15s;
+  }
+  .sheet-check:hover { background: #f8fafc; }
+  .sheet-check input[type=checkbox] { width: 17px; height: 17px; accent-color: #f97316; cursor: pointer; }
+  .sheet-check .sc-icon { font-size: 16px; width: 20px; text-align: center; }
+  .sheet-check .sc-label { flex: 1; font-size: 13px; font-weight: 500; }
+  .sheet-check .sc-count { font-size: 11px; color: #94a3b8; }
+  .sheet-check.checked { background: #fff7ed; border-color: #f97316; }
+
+  .date-range { display: flex; align-items: center; gap: 10px; margin-bottom: 18px; flex-wrap: wrap; }
+  .date-range label { font-size: 13px; font-weight: 600; color: #475569; white-space: nowrap; }
+  .date-range input { border: 1px solid #e2e8f0; border-radius: 8px; padding: 8px 12px; font-size: 13px; flex: 1; min-width: 140px; }
+  .date-range .clear-btn { background: #f1f5f9; border: none; border-radius: 8px; padding: 8px 12px; font-size: 12px; cursor: pointer; color: #64748b; }
+
+  .export-btn {
+    width: 100%; background: #1a1a2e; color: #fff; border: none;
+    border-radius: 10px; padding: 14px; font-size: 15px; font-weight: 700;
+    cursor: pointer; display: flex; align-items: center; justify-content: center;
+    gap: 10px; transition: background 0.2s;
+  }
+  .export-btn:hover  { background: #f97316; }
+  .export-btn:active { transform: scale(0.98); }
+  .export-btn.busy   { background: #64748b; pointer-events: none; }
+
+  /* History / preview */
+  .history-panel {
+    background: #fff; border-radius: 14px; padding: 22px;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  .history-panel h3 { font-size: 15px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; }
+  .history-item {
+    display: flex; align-items: center; gap: 10px; padding: 10px 0;
+    border-bottom: 1px solid #f1f5f9; font-size: 13px;
+  }
+  .history-item:last-child { border: none; }
+  .history-item i { color: #22c55e; }
+  .history-item .hi-name { flex: 1; font-weight: 500; }
+  .history-item .hi-time { color: #94a3b8; font-size: 11px; }
+  .history-item .hi-dl   { color: #3b82f6; cursor: pointer; font-size: 12px; }
+
+  /* Progress bar */
+  .progress-wrap { display: none; margin-top: 12px; }
+  .progress-bar  { height: 6px; background: #f1f5f9; border-radius: 3px; overflow: hidden; }
+  .progress-fill { height: 100%; background: linear-gradient(90deg,#f97316,#fbbf24); border-radius: 3px; animation: progAnim 1.2s ease-in-out infinite; }
+  @keyframes progAnim { 0%{width:0%} 60%{width:80%} 100%{width:100%} }
+
+  @media (max-width: 768px) {
+    .export-layout { grid-template-columns: 1fr; }
+    .quick-grid    { grid-template-columns: 1fr 1fr; }
+  }
+  @media (max-width: 480px) {
+    .quick-grid { grid-template-columns: 1fr; }
+  }
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Quick Export -->
+<div class="dash-card" style="margin-bottom:20px">
+  <div class="card-header">
+    <i class="fa-solid fa-bolt"></i> クイックエクスポート
+    <span style="margin-left:auto;font-size:11px;color:#94a3b8">ワンクリックでダウンロード</span>
+  </div>
+  <div class="card-body">
+    <div class="quick-grid">
+      <div class="quick-card" id="qc-all">
+        <i class="fa-solid fa-file-excel" style="color:#166534"></i>
+        <h4>全データ一括</h4>
+        <p>全シートをまとめて出力</p>
+        <button class="dl-btn" onclick="quickExport('all')">
+          <i class="fa-solid fa-download"></i> ダウンロード
+        </button>
+      </div>
+      <div class="quick-card" id="qc-schedules">
+        <i class="fa-solid fa-calendar-days" style="color:#1d4ed8"></i>
+        <h4>作業予定・実績</h4>
+        <p>全期間の作業スケジュール</p>
+        <button class="dl-btn" onclick="quickExport('schedules')">
+          <i class="fa-solid fa-download"></i> ダウンロード
+        </button>
+      </div>
+      <div class="quick-card" id="qc-workers">
+        <i class="fa-solid fa-users" style="color:#7c3aed"></i>
+        <h4>作業員名簿</h4>
+        <p>登録作業員・資格情報</p>
+        <button class="dl-btn" onclick="quickExport('workers')">
+          <i class="fa-solid fa-download"></i> ダウンロード
+        </button>
+      </div>
+      <div class="quick-card" id="qc-ky">
+        <i class="fa-solid fa-triangle-exclamation" style="color:#c2410c"></i>
+        <h4>KY記録</h4>
+        <p>危険予知活動の全記録</p>
+        <button class="dl-btn" onclick="quickExport('ky')">
+          <i class="fa-solid fa-download"></i> ダウンロード
+        </button>
+      </div>
+      <div class="quick-card" id="qc-attendance">
+        <i class="fa-solid fa-door-open" style="color:#0f766e"></i>
+        <h4>入退場記録</h4>
+        <p>全期間の打刻ログ</p>
+        <button class="dl-btn" onclick="quickExport('attendance')">
+          <i class="fa-solid fa-download"></i> ダウンロード
+        </button>
+      </div>
+      <div class="quick-card" id="qc-safety_docs">
+        <i class="fa-solid fa-file-shield" style="color:#dc2626"></i>
+        <h4>安全書類</h4>
+        <p>グリーンファイル一覧</p>
+        <button class="dl-btn" onclick="quickExport('safety_docs')">
+          <i class="fa-solid fa-download"></i> ダウンロード
+        </button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Custom Export + History -->
+<div class="export-layout">
+
+  <!-- Custom Export -->
+  <div class="export-panel">
+    <h3><i class="fa-solid fa-sliders text-orange"></i> カスタムエクスポート</h3>
+
+    <div class="date-range">
+      <label><i class="fa-solid fa-calendar"></i> 日付フィルター：</label>
+      <input type="date" id="exportDate" placeholder="指定なし（全期間）">
+      <button class="clear-btn" onclick="document.getElementById('exportDate').value=''">クリア</button>
+    </div>
+
+    <div class="sheet-checks" id="sheetChecks">
+      <label class="sheet-check checked" id="sc-all">
+        <input type="checkbox" value="all" checked onchange="toggleAll(this)">
+        <span class="sc-icon"><i class="fa-solid fa-layer-group text-orange"></i></span>
+        <span class="sc-label">全シート一括</span>
+        <span class="sc-count" id="cnt-all">—</span>
+      </label>
+      <label class="sheet-check" id="sc-schedules">
+        <input type="checkbox" value="schedules" onchange="updateAllCheck()">
+        <span class="sc-icon"><i class="fa-solid fa-calendar-days text-blue"></i></span>
+        <span class="sc-label">作業予定・実績</span>
+        <span class="sc-count" id="cnt-schedules">0件</span>
+      </label>
+      <label class="sheet-check" id="sc-equipment">
+        <input type="checkbox" value="equipment" onchange="updateAllCheck()">
+        <span class="sc-icon"><i class="fa-solid fa-truck-pickup text-green"></i></span>
+        <span class="sc-label">揚重機・重機予約</span>
+        <span class="sc-count" id="cnt-equipment">0件</span>
+      </label>
+      <label class="sheet-check" id="sc-ky">
+        <input type="checkbox" value="ky" onchange="updateAllCheck()">
+        <span class="sc-icon"><i class="fa-solid fa-triangle-exclamation text-orange"></i></span>
+        <span class="sc-label">電子KY記録</span>
+        <span class="sc-count" id="cnt-ky">0件</span>
+      </label>
+      <label class="sheet-check" id="sc-workers">
+        <input type="checkbox" value="workers" onchange="updateAllCheck()">
+        <span class="sc-icon"><i class="fa-solid fa-users text-purple"></i></span>
+        <span class="sc-label">作業員名簿</span>
+        <span class="sc-count" id="cnt-workers">0件</span>
+      </label>
+      <label class="sheet-check" id="sc-attendance">
+        <input type="checkbox" value="attendance" onchange="updateAllCheck()">
+        <span class="sc-icon"><i class="fa-solid fa-door-open" style="color:#0f766e"></i></span>
+        <span class="sc-label">入退場記録</span>
+        <span class="sc-count" id="cnt-attendance">0件</span>
+      </label>
+      <label class="sheet-check" id="sc-safety_docs">
+        <input type="checkbox" value="safety_docs" onchange="updateAllCheck()">
+        <span class="sc-icon"><i class="fa-solid fa-file-shield text-red"></i></span>
+        <span class="sc-label">安全書類</span>
+        <span class="sc-count" id="cnt-safety_docs">0件</span>
+      </label>
+    </div>
+
+    <div class="progress-wrap" id="progressWrap">
+      <div style="font-size:12px;color:#64748b;margin-bottom:6px">
+        <i class="fa-solid fa-spinner fa-spin"></i> Excelファイルを生成中...
+      </div>
+      <div class="progress-bar"><div class="progress-fill"></div></div>
+    </div>
+
+    <button class="export-btn" id="exportBtn" onclick="customExport()">
+      <i class="fa-solid fa-file-excel"></i>
+      Excelファイルを生成・ダウンロード
+    </button>
+  </div>
+
+  <!-- Export History -->
+  <div class="history-panel">
+    <h3><i class="fa-solid fa-clock-rotate-left text-blue"></i> エクスポート履歴</h3>
+    <div id="exportHistory">
+      <div class="empty-state" style="padding:24px 0">
+        <i class="fa-solid fa-file-excel" style="font-size:28px;color:#e2e8f0"></i>
+        <p style="color:#94a3b8;font-size:13px">まだエクスポートはありません</p>
+      </div>
+    </div>
+
+    <div style="margin-top:16px;padding-top:16px;border-top:1px solid #f1f5f9">
+      <h4 style="font-size:13px;font-weight:700;margin-bottom:12px;color:#475569">
+        <i class="fa-solid fa-circle-info"></i> シート内容
+      </h4>
+      <div style="display:flex;flex-direction:column;gap:8px;font-size:12px;color:#64748b">
+        <div><span style="font-weight:600;color:#1a1a2e">📊 ダッシュボード</span> — KPI・本日予定・資格アラートの要約</div>
+        <div><span style="font-weight:600;color:#1a1a2e">📅 作業予定・実績</span> — 日付・会社・作業内容・人数・状態</div>
+        <div><span style="font-weight:600;color:#1a1a2e">🏗️ 揚重機予約</span> — 設備ごとの予約時間・使用時間計算</div>
+        <div><span style="font-weight:600;color:#1a1a2e">⚠️ 電子KY記録</span> — 危険ポイント・対策・承認状態（色分け）</div>
+        <div><span style="font-weight:600;color:#1a1a2e">👷 作業員名簿</span> — 資格期限を自動色分け（赤/橙/緑）</div>
+        <div><span style="font-weight:600;color:#1a1a2e">🚪 入退場記録</span> — 滞在時間自動計算・在場中ハイライト</div>
+        <div><span style="font-weight:600;color:#1a1a2e">📋 安全書類</span> — グリーンファイル提出一覧</div>
+      </div>
+    </div>
+  </div>
+
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const SHEET_KEYS = ['schedules','equipment','ky','workers','attendance','safety_docs'];
+let exportHistory = JSON.parse(localStorage.getItem('exportHistory') || '[]');
+
+// ===== 件数ロード =====
+async function loadCounts() {
+  try {
+    const [sc, eq, ky, wk, at, sd] = await Promise.all([
+      fetch('/api/schedules').then(r=>r.json()),
+      fetch('/api/equipment').then(r=>r.json()),
+      fetch('/api/ky').then(r=>r.json()),
+      fetch('/api/workers').then(r=>r.json()),
+      fetch('/api/attendance?date=').then(r=>r.json()).catch(()=>[]),
+      fetch('/api/safety_docs').then(r=>r.json()),
+    ]);
+    const counts = {schedules:sc.length, equipment:eq.length, ky:ky.length,
+                    workers:wk.length, attendance:at.length, safety_docs:sd.length};
+    let total = 0;
+    for (const [k, v] of Object.entries(counts)) {
+      const el = document.getElementById(`cnt-${k}`);
+      if (el) { el.textContent = `${v}件`; }
+      total += v;
+    }
+    const allEl = document.getElementById('cnt-all');
+    if (allEl) allEl.textContent = `計 ${total}件`;
+  } catch(e) { console.warn('count load failed', e); }
+}
+loadCounts();
+
+// ===== チェックボックス制御 =====
+function toggleAll(cb) {
+  const isAll = cb.checked;
+  SHEET_KEYS.forEach(k => {
+    const el = document.querySelector(`#sc-${k} input`);
+    if (el) { el.checked = false; }
+    document.getElementById(`sc-${k}`)?.classList.remove('checked');
+  });
+  document.getElementById('sc-all').classList.toggle('checked', isAll);
+}
+
+function updateAllCheck() {
+  const allCb = document.querySelector('#sc-all input');
+  if (allCb) allCb.checked = false;
+  document.getElementById('sc-all')?.classList.remove('checked');
+  SHEET_KEYS.forEach(k => {
+    const cb = document.querySelector(`#sc-${k} input`);
+    document.getElementById(`sc-${k}`)?.classList.toggle('checked', cb?.checked);
+  });
+}
+
+// ===== Quick Export =====
+async function quickExport(sheet) {
+  const card = document.getElementById(`qc-${sheet}`);
+  if (card) card.classList.add('loading');
+  try {
+    const today = new Date().toISOString().split('T')[0];
+    const url = `/api/export/quick/${sheet}`;
+    await downloadExcel(url, null, `BuildeeMgr_${sheet}_${today}.xlsx`);
+    addHistory(sheet, 'quick');
+  } finally {
+    if (card) card.classList.remove('loading');
+  }
+}
+
+// ===== Custom Export =====
+async function customExport() {
+  const allChecked = document.querySelector('#sc-all input')?.checked;
+  let sheets = allChecked ? ['all'] : SHEET_KEYS.filter(k => {
+    return document.querySelector(`#sc-${k} input`)?.checked;
+  });
+  if (sheets.length === 0) {
+    showToast('シートを1つ以上選択してください', 'error'); return;
+  }
+
+  const filter_date = document.getElementById('exportDate').value || null;
+  const btn = document.getElementById('exportBtn');
+  const prog = document.getElementById('progressWrap');
+
+  btn.classList.add('busy');
+  btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> 生成中...';
+  prog.style.display = 'block';
+
+  try {
+    const body = { sheets, date: filter_date };
+    const today = new Date().toISOString().split('T')[0];
+    const label = sheets.includes('all') ? 'all' : sheets.join('_');
+    const filename = `BuildeeMgr_${label}_${today}.xlsx`;
+    await downloadExcel('/api/export', body, filename);
+    addHistory(label, 'custom', filter_date);
+    showToast('Excelファイルをダウンロードしました', 'success');
+  } catch(e) {
+    showToast('エクスポートに失敗しました: ' + e.message, 'error');
+  } finally {
+    btn.classList.remove('busy');
+    btn.innerHTML = '<i class="fa-solid fa-file-excel"></i> Excelファイルを生成・ダウンロード';
+    prog.style.display = 'none';
+  }
+}
+
+// ===== Download helper =====
+async function downloadExcel(url, body, filename) {
+  const opts = body
+    ? { method: 'POST', headers: {'Content-Type':'application/json'}, body: JSON.stringify(body) }
+    : { method: 'GET' };
+  const res = await fetch(url, opts);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.error || `HTTP ${res.status}`);
+  }
+  const blob = await res.blob();
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = filename;
+  document.body.appendChild(a);
+  a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 1000);
+}
+
+// ===== History =====
+function addHistory(label, type, dateFilter = null) {
+  const now = new Date().toLocaleString('ja-JP');
+  const entry = { label, type, date: dateFilter, time: now };
+  exportHistory.unshift(entry);
+  if (exportHistory.length > 20) exportHistory = exportHistory.slice(0, 20);
+  localStorage.setItem('exportHistory', JSON.stringify(exportHistory));
+  renderHistory();
+}
+
+const LABEL_MAP = {
+  all:'全データ', schedules:'作業予定', equipment:'揚重機予約',
+  ky:'KY記録', workers:'作業員名簿', attendance:'入退場記録', safety_docs:'安全書類'
+};
+
+function renderHistory() {
+  const el = document.getElementById('exportHistory');
+  if (exportHistory.length === 0) {
+    el.innerHTML = `<div class="empty-state" style="padding:24px 0">
+      <i class="fa-solid fa-file-excel" style="font-size:28px;color:#e2e8f0"></i>
+      <p style="color:#94a3b8;font-size:13px">まだエクスポートはありません</p>
+    </div>`; return;
+  }
+  el.innerHTML = exportHistory.slice(0, 8).map(e => {
+    const lbl = LABEL_MAP[e.label] || e.label;
+    const sub = e.date ? ` (${e.date})` : ' (全期間)';
+    return `<div class="history-item">
+      <i class="fa-solid fa-file-excel"></i>
+      <span class="hi-name">${lbl}${sub}</span>
+      <span class="hi-time">${e.time}</span>
+    </div>`;
+  }).join('');
+}
+renderHistory();
+</script>
+{% endblock %}

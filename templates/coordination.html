@@ -1,0 +1,428 @@
+{% extends "base.html" %}
+{% block title %}調整会議{% endblock %}
+{% block page_title %}<i class="fa-solid fa-calendar-days"></i> 調整会議{% endblock %}
+
+{% block content %}
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('schedule')">作業予定</button>
+  <button class="tab-btn" onclick="switchTab('equipment')">揚重機予約</button>
+  <button class="tab-btn" onclick="switchTab('layout')">配置図</button>
+  <button class="tab-btn" onclick="switchTab('report')">帳票出力</button>
+</div>
+
+<!-- 作業予定 Tab -->
+<div id="tab-schedule" class="tab-content active">
+  <div class="section-toolbar">
+    <div class="date-picker-wrap">
+      <label>対象日：</label>
+      <input type="date" id="scheduleDate" value="{{ today }}" onchange="loadSchedules()">
+    </div>
+    <button class="btn btn-primary" id="addScheduleBtn" onclick="openScheduleModal()">
+      <i class="fa-solid fa-plus"></i> 追加
+    </button>
+  </div>
+
+  <!-- Desktop Table -->
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>協力会社</th><th>作業内容</th><th>場所</th><th>人数</th>
+          <th>開始</th><th>終了</th><th>備考</th><th>状態</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="scheduleBody">
+        <tr><td colspan="9" class="text-center"><i class="fa-solid fa-spinner fa-spin"></i></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Mobile Card List -->
+  <div class="card-list" id="scheduleCardList">
+    <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i></div>
+  </div>
+</div>
+
+<!-- 揚重機予約 Tab -->
+<div id="tab-equipment" class="tab-content">
+  <div class="section-toolbar">
+    <div class="date-picker-wrap">
+      <label>対象日：</label>
+      <input type="date" id="equipDate" value="{{ today }}" onchange="loadEquipment()">
+    </div>
+    <button class="btn btn-primary" onclick="openEquipModal()">
+      <i class="fa-solid fa-plus"></i> 予約
+    </button>
+  </div>
+  <div class="timeline-container">
+    <div class="timeline-header" style="min-width:600px">
+      <div class="tl-label">設備</div>
+      {% for h in range(7, 19) %}<div class="tl-hour">{{ '%02d'|format(h) }}</div>{% endfor %}
+    </div>
+    <div id="timelineRows"></div>
+  </div>
+  <div class="table-wrap" style="margin-top:16px">
+    <table class="data-table">
+      <thead><tr><th>設備</th><th>会社</th><th>開始</th><th>終了</th><th>用途</th><th></th></tr></thead>
+      <tbody id="equipBody"></tbody>
+    </table>
+  </div>
+  <!-- Mobile -->
+  <div class="card-list" id="equipCardList"></div>
+</div>
+
+<!-- 配置図 Tab -->
+<div id="tab-layout" class="tab-content">
+  <div class="section-toolbar">
+    <span class="text-muted" style="font-size:12px">ドラッグで配置 / ダブルタップで削除</span>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-secondary btn-sm" onclick="clearLayout()"><i class="fa-solid fa-trash"></i></button>
+      <button class="btn btn-primary btn-sm" onclick="saveLayout()"><i class="fa-solid fa-save"></i> 保存</button>
+    </div>
+  </div>
+  <div class="layout-container">
+    <div class="layout-toolbar">
+      <div class="layout-tool" draggable="true" data-type="crane" ondragstart="dragStart(event)">
+        <i class="fa-solid fa-truck-pickup text-blue"></i><span>クレーン</span>
+      </div>
+      <div class="layout-tool" draggable="true" data-type="worker" ondragstart="dragStart(event)">
+        <i class="fa-solid fa-person-digging text-orange"></i><span>作業員</span>
+      </div>
+      <div class="layout-tool" draggable="true" data-type="danger" ondragstart="dragStart(event)">
+        <i class="fa-solid fa-circle-radiation text-red"></i><span>危険</span>
+      </div>
+      <div class="layout-tool" draggable="true" data-type="material" ondragstart="dragStart(event)">
+        <i class="fa-solid fa-boxes-stacked text-green"></i><span>資材</span>
+      </div>
+      <div class="layout-tool" draggable="true" data-type="gate" ondragstart="dragStart(event)">
+        <i class="fa-solid fa-door-open text-purple"></i><span>ゲート</span>
+      </div>
+    </div>
+    <div class="layout-canvas" id="layoutCanvas"
+         ondragover="event.preventDefault()" ondrop="dropOnCanvas(event)">
+      <div class="canvas-grid-bg"></div>
+      <div class="canvas-placeholder">
+        <i class="fa-solid fa-map"></i>
+        <p>アイコンをドラッグして配置</p>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- 帳票出力 Tab -->
+<div id="tab-report" class="tab-content">
+  <div class="report-grid">
+    <div class="report-card" onclick="generateReport('daily')">
+      <i class="fa-solid fa-file-lines fa-2x text-blue"></i>
+      <h3>現場日報</h3>
+      <p>本日の作業実績・入場者数</p>
+      <button class="btn btn-primary btn-sm">出力</button>
+    </div>
+    <div class="report-card" onclick="generateReport('instruction')">
+      <i class="fa-solid fa-file-pen fa-2x text-green"></i>
+      <h3>作業指示書</h3>
+      <p>明日の作業予定</p>
+      <button class="btn btn-primary btn-sm">出力</button>
+    </div>
+    <div class="report-card" onclick="generateReport('safety')">
+      <i class="fa-solid fa-file-shield fa-2x text-orange"></i>
+      <h3>安全指示書</h3>
+      <p>KY・安全注意事項</p>
+      <button class="btn btn-primary btn-sm">出力</button>
+    </div>
+  </div>
+  <div id="reportPreview" class="report-preview" style="display:none"></div>
+</div>
+
+<!-- 作業予定モーダル -->
+<div id="scheduleModal" class="modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-clipboard-list"></i> 作業予定登録</h3>
+      <button onclick="closeModal('scheduleModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>協力会社 *</label>
+          <select id="sc_company"><option value="">選択してください</option>
+            {% for c in companies %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>作業内容 *</label>
+          <input type="text" id="sc_content" placeholder="例：3階スラブ配筋作業">
+        </div>
+        <div class="form-group">
+          <label>作業場所</label>
+          <input type="text" id="sc_location" placeholder="例：3階東側">
+        </div>
+        <div class="form-group">
+          <label>人数</label>
+          <input type="number" id="sc_workers" min="1" value="1">
+        </div>
+        <div class="form-group">
+          <label>開始時刻</label>
+          <input type="time" id="sc_start" value="08:00">
+        </div>
+        <div class="form-group">
+          <label>終了時刻</label>
+          <input type="time" id="sc_end" value="17:00">
+        </div>
+        <div class="form-group full">
+          <label>備考</label>
+          <textarea id="sc_note" rows="2" placeholder="特記事項"></textarea>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('scheduleModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveSchedule()"><i class="fa-solid fa-save"></i> 登録</button>
+    </div>
+  </div>
+</div>
+
+<!-- 揚重機予約モーダル -->
+<div id="equipModal" class="modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-truck-pickup"></i> 揚重機・重機予約</h3>
+      <button onclick="closeModal('equipModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group full">
+          <label>設備名 *</label>
+          <select id="eq_equipment">
+            <option>タワークレーン</option><option>移動式クレーン</option>
+            <option>工事用エレベーター</option><option>ゲート（北）</option>
+            <option>ゲート（南）</option><option>高所作業車</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>協力会社 *</label>
+          <select id="eq_company"><option value="">選択してください</option>
+            {% for c in companies %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>使用開始</label>
+          <input type="time" id="eq_start" value="09:00">
+        </div>
+        <div class="form-group">
+          <label>使用終了</label>
+          <input type="time" id="eq_end" value="10:00">
+        </div>
+        <div class="form-group full">
+          <label>使用目的</label>
+          <input type="text" id="eq_purpose" placeholder="例：鉄筋搬入">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('equipModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveEquipment()">予約する</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const today = '{{ today }}';
+let dragType = null;
+let currentTab = 'schedule';
+
+// FAB action
+window.fabAction = function() {
+  if (currentTab === 'schedule') openScheduleModal();
+  else if (currentTab === 'equipment') openEquipModal();
+};
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+  currentTab = name;
+  if (name === 'schedule') loadSchedules();
+  if (name === 'equipment') loadEquipment();
+}
+
+// ===== 作業予定 =====
+async function loadSchedules() {
+  const date = document.getElementById('scheduleDate').value;
+  const res = await fetch('/api/schedules');
+  const data = await res.json();
+  const filtered = data.filter(s => s.date === date);
+
+  // Desktop
+  const tbody = document.getElementById('scheduleBody');
+  if (filtered.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center empty-state">この日の予定はありません</td></tr>';
+  } else {
+    tbody.innerHTML = filtered.map(s => `
+      <tr>
+        <td><span class="badge blue">${s.company}</span></td>
+        <td>${s.work_content}</td><td>${s.location||'-'}</td><td>${s.workers_count}名</td>
+        <td>${s.time_start||'-'}</td><td>${s.time_end||'-'}</td><td>${s.note||'-'}</td>
+        <td><span class="badge ${s.status==='完了'?'green':'orange'}">${s.status||'予定'}</span></td>
+        <td>
+          <button class="btn-icon" onclick="completeSchedule('${s.id}')"><i class="fa-solid fa-check"></i></button>
+          <button class="btn-icon red" onclick="deleteSchedule('${s.id}')"><i class="fa-solid fa-trash"></i></button>
+        </td>
+      </tr>`).join('');
+  }
+
+  // Mobile
+  const cardList = document.getElementById('scheduleCardList');
+  if (filtered.length === 0) {
+    cardList.innerHTML = '<div class="empty-state"><i class="fa-solid fa-calendar-xmark"></i>この日の予定はありません</div>';
+  } else {
+    cardList.innerHTML = filtered.map(s => `
+      <div class="card-list-item">
+        <div class="cli-header">
+          <span class="cli-title">${s.work_content}</span>
+          <span class="badge ${s.status==='完了'?'green':'orange'}">${s.status||'予定'}</span>
+        </div>
+        <div class="cli-meta">
+          <span><i class="fa-solid fa-building"></i>${s.company}</span>
+          <span><i class="fa-solid fa-location-dot"></i>${s.location||'未設定'}</span>
+          <span><i class="fa-solid fa-users"></i>${s.workers_count}名</span>
+          <span><i class="fa-solid fa-clock"></i>${s.time_start||'--'}〜${s.time_end||'--'}</span>
+        </div>
+        ${s.note ? `<div style="font-size:12px;color:#64748b">${s.note}</div>` : ''}
+        <div class="cli-actions">
+          <button class="btn btn-sm btn-secondary" onclick="completeSchedule('${s.id}')"><i class="fa-solid fa-check"></i> 完了</button>
+          <button class="btn btn-sm" style="background:#fef2f2;color:#dc2626" onclick="deleteSchedule('${s.id}')"><i class="fa-solid fa-trash"></i></button>
+        </div>
+      </div>`).join('');
+  }
+}
+
+function openScheduleModal() { document.getElementById('scheduleModal').classList.add('open'); }
+
+async function saveSchedule() {
+  const date = document.getElementById('scheduleDate').value;
+  const company = document.getElementById('sc_company').value;
+  const content = document.getElementById('sc_content').value;
+  if (!company || !content) { showToast('協力会社と作業内容は必須です', 'error'); return; }
+  const body = { date, company, work_content: content,
+    location: document.getElementById('sc_location').value,
+    workers_count: parseInt(document.getElementById('sc_workers').value)||1,
+    time_start: document.getElementById('sc_start').value,
+    time_end: document.getElementById('sc_end').value,
+    note: document.getElementById('sc_note').value, status:'予定' };
+  await fetch('/api/schedules', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  closeModal('scheduleModal');
+  loadSchedules();
+  showToast('作業予定を登録しました', 'success');
+}
+async function completeSchedule(id) {
+  await fetch(`/api/schedules/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'完了'})});
+  loadSchedules(); showToast('完了にしました','success');
+}
+async function deleteSchedule(id) {
+  if (!confirm('削除しますか？')) return;
+  await fetch(`/api/schedules/${id}`,{method:'DELETE'});
+  loadSchedules(); showToast('削除しました','info');
+}
+
+// ===== 揚重機 =====
+const EQUIPS = ['タワークレーン','移動式クレーン','工事用エレベーター','ゲート（北）','ゲート（南）','高所作業車'];
+const ECOLS  = ['#3b82f6','#22c55e','#f97316','#a855f7','#ec4899','#14b8a6'];
+
+async function loadEquipment() {
+  const date = document.getElementById('equipDate').value;
+  const res = await fetch('/api/equipment');
+  const data = await res.json();
+  const filtered = data.filter(e => e.date === date);
+
+  // Table
+  const tbody = document.getElementById('equipBody');
+  tbody.innerHTML = filtered.length===0
+    ? '<tr><td colspan="6" class="text-center empty-state">この日の予約はありません</td></tr>'
+    : filtered.map(e=>`<tr><td>${e.equipment}</td><td>${e.company}</td><td>${e.time_start}</td><td>${e.time_end}</td><td>${e.purpose||'-'}</td><td><button class="btn-icon red" onclick="deleteEquip('${e.id}')"><i class="fa-solid fa-trash"></i></button></td></tr>`).join('');
+
+  // Mobile cards
+  const cl = document.getElementById('equipCardList');
+  cl.innerHTML = filtered.length===0 ? '' : filtered.map(e=>`
+    <div class="card-list-item">
+      <div class="cli-header">
+        <span class="cli-title">${e.equipment}</span>
+        <span class="badge blue">${e.time_start}〜${e.time_end}</span>
+      </div>
+      <div class="cli-meta">
+        <span><i class="fa-solid fa-building"></i>${e.company}</span>
+        ${e.purpose?`<span><i class="fa-solid fa-note-sticky"></i>${e.purpose}</span>`:''}
+      </div>
+      <div class="cli-actions">
+        <button class="btn btn-sm" style="background:#fef2f2;color:#dc2626" onclick="deleteEquip('${e.id}')"><i class="fa-solid fa-trash"></i> 削除</button>
+      </div>
+    </div>`).join('');
+
+  // Timeline
+  const timelineRows = document.getElementById('timelineRows');
+  timelineRows.innerHTML = EQUIPS.map((eq,ei)=>{
+    const bars = filtered.filter(e=>e.equipment===eq).map(e=>{
+      const s=timeToPercent(e.time_start), en=timeToPercent(e.time_end);
+      return `<div class="tl-bar" style="left:${s}%;width:${en-s}%;background:${ECOLS[ei%ECOLS.length]}" title="${e.company}">${e.company}</div>`;
+    }).join('');
+    return `<div class="timeline-row"><div class="tl-label">${eq}</div><div class="tl-track">${bars}</div></div>`;
+  }).join('');
+}
+function timeToPercent(t){const[h,m]=t.split(':').map(Number);return((h-7)*60+m)/(12*60)*100;}
+function openEquipModal(){document.getElementById('equipModal').classList.add('open');}
+async function saveEquipment(){
+  const date=document.getElementById('equipDate').value;
+  const eq=document.getElementById('eq_equipment').value;
+  const co=document.getElementById('eq_company').value;
+  if(!co){showToast('協力会社は必須です','error');return;}
+  const body={date,equipment:eq,company:co,time_start:document.getElementById('eq_start').value,time_end:document.getElementById('eq_end').value,purpose:document.getElementById('eq_purpose').value};
+  const res=await fetch('/api/equipment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if(res.status===409){const err=await res.json();showToast(err.message,'error');return;}
+  closeModal('equipModal');loadEquipment();showToast('予約しました','success');
+}
+async function deleteEquip(id){
+  if(!confirm('削除しますか？'))return;
+  await fetch(`/api/equipment/${id}`,{method:'DELETE'});
+  loadEquipment();showToast('削除しました','info');
+}
+
+// ===== 配置図 =====
+function dragStart(e){dragType=e.target.closest('[data-type]').dataset.type;}
+function dropOnCanvas(e){
+  e.preventDefault();
+  const canvas=document.getElementById('layoutCanvas');
+  const rect=canvas.getBoundingClientRect();
+  const x=e.clientX-rect.left-20, y=e.clientY-rect.top-20;
+  const icons={crane:'fa-truck-pickup',worker:'fa-person-digging',danger:'fa-circle-radiation',material:'fa-boxes-stacked',gate:'fa-door-open'};
+  const colors={crane:'text-blue',worker:'text-orange',danger:'text-red',material:'text-green',gate:'text-purple'};
+  const labels={crane:'クレーン',worker:'作業員',danger:'危険',material:'資材',gate:'ゲート'};
+  const el=document.createElement('div');
+  el.className='canvas-icon';el.style.left=x+'px';el.style.top=y+'px';
+  el.innerHTML=`<i class="fa-solid ${icons[dragType]} ${colors[dragType]}"></i><span>${labels[dragType]}</span>`;
+  el.ondblclick=()=>el.remove();makeDraggable(el);
+  const ph=canvas.querySelector('.canvas-placeholder');if(ph)ph.style.display='none';
+  canvas.appendChild(el);
+}
+function makeDraggable(el){
+  let ox,oy;
+  el.onmousedown=(e)=>{ox=e.clientX-el.offsetLeft;oy=e.clientY-el.offsetTop;document.onmousemove=(e2)=>{el.style.left=(e2.clientX-ox)+'px';el.style.top=(e2.clientY-oy)+'px';};document.onmouseup=()=>{document.onmousemove=null;};};
+}
+function clearLayout(){document.getElementById('layoutCanvas').querySelectorAll('.canvas-icon').forEach(e=>e.remove());const ph=document.querySelector('.canvas-placeholder');if(ph)ph.style.display='flex';}
+function saveLayout(){showToast('配置図を保存しました','success');}
+
+// ===== 帳票 =====
+async function generateReport(type){
+  const res=await fetch('/api/dashboard');const d=await res.json();
+  const today=new Date().toLocaleDateString('ja-JP');
+  const titles={daily:'現場日報',instruction:'作業指示書',safety:'安全指示書'};
+  const preview=document.getElementById('reportPreview');preview.style.display='block';
+  preview.innerHTML=`<div class="report-doc"><div class="report-doc-header"><h2>${titles[type]}</h2><p>作成日：${today}</p></div><table class="report-table"><tr><th>本日入場者数</th><td>${d.today_workers}名</td></tr><tr><th>作業予定件数</th><td>${d.today_schedules}件</td></tr><tr><th>未承認KY</th><td>${d.pending_ky}件</td></tr></table>${d.recent_schedules.map(s=>`<div class="report-row"><b>${s.company}</b> : ${s.work_content} ${s.workers_count}名</div>`).join('')}<div style="margin-top:24px;text-align:right"><button class="btn btn-primary" onclick="window.print()"><i class="fa-solid fa-print"></i> 印刷</button></div></div>`;
+  preview.scrollIntoView({behavior:'smooth'});
+}
+
+loadSchedules();
+</script>
+{% endblock %}

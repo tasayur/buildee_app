@@ -1,0 +1,356 @@
+{% extends "base.html" %}
+{% block title %}証明書管理{% endblock %}
+{% block page_title %}<i class="fa-solid fa-certificate"></i> TLS証明書 / Let's Encrypt{% endblock %}
+
+{% block head %}
+<style>
+  .cert-grid { display:grid; grid-template-columns:1fr 1fr; gap:18px; }
+  .cert-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:20px; }
+  .cert-card h3 { font-size:14px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+  .cert-row { display:flex; justify-content:space-between; align-items:center;
+              padding:7px 0; border-bottom:1px solid #f1f5f9; font-size:13px; }
+  .cert-row:last-child { border:none; }
+  .cert-label { color:#64748b; }
+
+  .days-ok   { color:#22c55e; font-weight:700; }
+  .days-warn { color:#f97316; font-weight:700; }
+  .days-err  { color:#dc2626; font-weight:700; }
+
+  .badge-le   { background:#dcfce7; color:#166534; }
+  .badge-self { background:#dbeafe; color:#1d4ed8; }
+  .badge-exp  { background:#fef2f2; color:#dc2626; }
+
+  .progress-wrap { display:none; background:#f1f5f9; border-radius:8px; padding:14px;
+                   margin-top:12px; align-items:center; gap:10px; }
+  .progress-wrap.show { display:flex; }
+  .spinner { width:20px;height:20px;border:3px solid #e2e8f0;border-top-color:#f97316;
+             border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0; }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .output-box { background:#1a1a2e; color:#e2e8f0; border-radius:10px; padding:14px;
+                font-size:11px; font-family:monospace; max-height:200px; overflow-y:auto;
+                margin-top:10px; white-space:pre-wrap; display:none; }
+  .output-box.show { display:block; }
+
+  @media(max-width:768px){ .cert-grid{ grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('status')">証明書ステータス</button>
+  <button class="tab-btn" onclick="switchTab('obtain')">新規取得</button>
+  <button class="tab-btn" onclick="switchTab('log')">更新履歴</button>
+</div>
+
+<!-- ===== ステータスタブ ===== -->
+<div id="tab-status" class="tab-content active">
+  <div class="cert-grid" id="certGrid">
+    <div class="cert-card">
+      <h3><i class="fa-solid fa-spinner fa-spin text-orange"></i> 読み込み中...</h3>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 新規取得タブ ===== -->
+<div id="tab-obtain" class="tab-content">
+  <div class="cert-card" style="max-width:600px">
+    <h3><i class="fa-solid fa-lock text-green"></i> Let's Encrypt 証明書の新規取得</h3>
+
+    <div style="background:#fff7ed;border:1px solid #fed7aa;border-radius:10px;padding:12px 16px;margin-bottom:16px;font-size:13px;color:#c2410c">
+      <i class="fa-solid fa-triangle-exclamation"></i>
+      <strong>前提条件：</strong>
+      <ul style="margin:6px 0 0 16px;line-height:1.9">
+        <li>取得するドメインの DNS が このサーバーの IP を向いていること</li>
+        <li>ポート 80（HTTP）が外部からアクセスできること</li>
+        <li>Docker コンテナが起動中であること（<code>docker compose up -d</code>）</li>
+      </ul>
+    </div>
+
+    <div class="form-group" style="margin-bottom:14px">
+      <label style="font-size:12px;color:#64748b;display:block;margin-bottom:4px">ドメイン名 *</label>
+      <input type="text" id="obtainDomain" placeholder="buildee.example.com"
+             style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:14px">
+    </div>
+    <div class="form-group" style="margin-bottom:14px">
+      <label style="font-size:12px;color:#64748b;display:block;margin-bottom:4px">メールアドレス（証明書期限通知用）*</label>
+      <input type="email" id="obtainEmail" placeholder="admin@example.com"
+             style="width:100%;padding:8px 12px;border-radius:8px;border:1px solid #e2e8f0;font-size:14px">
+    </div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:16px">
+      <input type="checkbox" id="obtainStaging" style="accent-color:#f97316;width:16px;height:16px">
+      <label for="obtainStaging" style="font-size:13px;color:#475569;cursor:pointer">
+        ステージング環境で取得（レート制限を回避したテスト用 — 本番ブラウザでは信頼されません）
+      </label>
+    </div>
+
+    <div style="display:flex;gap:10px;flex-wrap:wrap">
+      <button class="btn btn-secondary" onclick="runObtain(true)">
+        <i class="fa-solid fa-flask"></i> ドライラン（事前確認）
+      </button>
+      <button class="btn btn-primary" onclick="runObtain(false)">
+        <i class="fa-solid fa-lock"></i> 証明書を取得する
+      </button>
+    </div>
+
+    <div class="progress-wrap" id="obtainProgress">
+      <div class="spinner"></div>
+      <span id="obtainProgressMsg" style="font-size:13px;color:#475569">処理中...</span>
+    </div>
+    <div class="output-box" id="obtainOutput"></div>
+  </div>
+</div>
+
+<!-- ===== 更新履歴タブ ===== -->
+<div id="tab-log" class="tab-content">
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>日時</th><th>操作</th><th>ドメイン</th><th>更新</th><th>ドライラン</th><th>結果</th></tr></thead>
+      <tbody id="certLogBody">
+        <tr><td colspan="6" style="text-align:center;color:#94a3b8">読み込み中...</td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.addEventListener('DOMContentLoaded', () => {
+  loadCertStatus();
+  loadCertLog();
+});
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+// ---- Status ----
+async function loadCertStatus() {
+  const res  = await fetch('/api/admin/certbot/status');
+  const data = await res.json();
+  const grid = document.getElementById('certGrid');
+
+  const ss = data.self_signed || {};
+  const le = data.letsencrypt || {};
+
+  grid.innerHTML = `
+    ${renderCertCard('🔒 Let\'s Encrypt 証明書', le, true)}
+    ${renderCertCard('🔑 自己署名証明書', ss, false)}
+    ${renderAutoRenewCard(le)}
+  `;
+}
+
+function daysClass(days) {
+  if (days == null) return '';
+  if (days < 0)   return 'days-err';
+  if (days <= 14) return 'days-err';
+  if (days <= 30) return 'days-warn';
+  return 'days-ok';
+}
+
+function renderCertCard(title, info, isLE) {
+  if (!info.exists) {
+    return `<div class="cert-card">
+      <h3>${title}</h3>
+      <p style="color:#94a3b8;font-size:13px">証明書が見つかりません</p>
+      ${isLE ? '<p style="font-size:12px;color:#64748b;margin-top:8px">「新規取得」タブから Let\'s Encrypt 証明書を取得できます。</p>' : ''}
+    </div>`;
+  }
+  const days  = info.days_left;
+  const dc    = daysClass(days);
+  const badge = info.expired ? '<span class="badge badge-exp">期限切れ</span>'
+              : info.expiring ? '<span class="badge" style="background:#fff7ed;color:#c2410c">⚠️ 期限切れ間近</span>'
+              : '<span class="badge" style="background:#dcfce7;color:#166534">✅ 有効</span>';
+
+  const renewBtn = isLE ? `
+    <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
+      <button class="btn btn-sm btn-primary" onclick="runRenew(false)">
+        <i class="fa-solid fa-rotate"></i> 今すぐ更新
+      </button>
+      <button class="btn btn-sm btn-secondary" onclick="runRenew(true)">
+        <i class="fa-solid fa-flask"></i> ドライラン
+      </button>
+      <button class="btn btn-sm btn-secondary" onclick="reloadNginx()">
+        <i class="fa-solid fa-arrows-rotate"></i> Nginx リロード
+      </button>
+    </div>
+    <div class="progress-wrap" id="renewProgress">
+      <div class="spinner"></div>
+      <span id="renewProgressMsg" style="font-size:13px;color:#475569">更新中...</span>
+    </div>
+    <div class="output-box" id="renewOutput"></div>` : `
+    <div style="margin-top:14px">
+      <button class="btn btn-sm btn-secondary" onclick="regenSelfSigned()">
+        <i class="fa-solid fa-rotate"></i> 再生成
+      </button>
+    </div>`;
+
+  return `<div class="cert-card">
+    <h3>${title} ${badge}</h3>
+    <div class="cert-row">
+      <span class="cert-label">ドメイン / CN</span>
+      <span style="font-weight:600">${info.cn || info.domain || '—'}</span>
+    </div>
+    <div class="cert-row">
+      <span class="cert-label">有効期間</span>
+      <span>${info.not_before || '—'} 〜 ${info.not_after || '—'}</span>
+    </div>
+    <div class="cert-row">
+      <span class="cert-label">残り日数</span>
+      <span class="${dc}">${days != null ? days + '日' : '—'}</span>
+    </div>
+    ${info.sans && info.sans.length ? `<div class="cert-row">
+      <span class="cert-label">SAN</span>
+      <span style="font-size:11px;font-family:monospace">${info.sans.slice(0,3).join(', ')}</span>
+    </div>` : ''}
+    ${info.serial ? `<div class="cert-row">
+      <span class="cert-label">シリアル</span>
+      <span style="font-family:monospace;font-size:11px">${info.serial}…</span>
+    </div>` : ''}
+    ${renewBtn}
+  </div>`;
+}
+
+function renderAutoRenewCard(le) {
+  return `<div class="cert-card" style="grid-column:1/-1">
+    <h3><i class="fa-solid fa-clock-rotate-left text-purple"></i> 自動更新の仕組み</h3>
+    <div style="font-size:13px;color:#475569;line-height:2">
+      <div>🔄 <strong>更新タイミング</strong>：certbot コンテナが 12時間ごとにチェック（期限 30日前から実行）</div>
+      <div>🔁 <strong>Nginx 反映</strong>：更新成功後に nginx -s reload を自動送信</div>
+      <div>📧 <strong>期限アラート</strong>：notifier の日次チェックで残り30日以内になったらメール通知</div>
+      <div>🐳 <strong>有効化方法</strong>：<code>docker compose --profile ssl up -d</code></div>
+    </div>
+    <div style="margin-top:14px;background:#1a1a2e;color:#e2e8f0;border-radius:8px;padding:12px;font-size:12px;font-family:monospace">
+# 証明書取得後、自動更新を有効化
+docker compose --profile ssl up -d
+
+# 更新ログ確認
+docker compose logs certbot
+
+# 手動更新
+docker compose exec certbot certbot renew --dry-run
+    </div>
+  </div>`;
+}
+
+// ---- Renew ----
+async function runRenew(dryRun) {
+  const prog = document.getElementById('renewProgress');
+  const msg  = document.getElementById('renewProgressMsg');
+  const out  = document.getElementById('renewOutput');
+  if (!prog) return;
+  prog.classList.add('show');
+  msg.textContent = dryRun ? 'ドライラン実行中...' : '証明書を更新中...';
+  out.classList.remove('show');
+
+  try {
+    const res  = await fetch('/api/admin/certbot/renew', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({dry_run: dryRun})
+    });
+    const data = await res.json();
+    if (data.success) {
+      msg.textContent = dryRun ? '✅ ドライラン成功' : (data.renewed ? '✅ 証明書を更新しました' : '✅ 更新不要（まだ期限まで余裕があります）');
+      showToast(msg.textContent, 'success');
+      if (!dryRun) setTimeout(loadCertStatus, 2000);
+    } else {
+      msg.textContent = '❌ ' + (data.output || '更新失敗');
+      showToast('更新に失敗しました', 'error');
+    }
+    if (data.output) {
+      out.textContent = data.output;
+      out.classList.add('show');
+    }
+  } catch(e) {
+    msg.textContent = '❌ 通信エラー';
+  } finally {
+    setTimeout(() => prog.classList.remove('show'), 8000);
+  }
+}
+
+// ---- Obtain ----
+async function runObtain(dryRun) {
+  const domain  = document.getElementById('obtainDomain').value.trim();
+  const email   = document.getElementById('obtainEmail').value.trim();
+  const staging = document.getElementById('obtainStaging').checked;
+
+  if (!domain || !email) {
+    showToast('ドメインとメールアドレスを入力してください', 'error'); return;
+  }
+
+  const prog = document.getElementById('obtainProgress');
+  const msg  = document.getElementById('obtainProgressMsg');
+  const out  = document.getElementById('obtainOutput');
+  prog.classList.add('show');
+  msg.textContent = dryRun ? `${domain} のドライラン中...` : `${domain} の証明書を取得中...`;
+  out.classList.remove('show');
+
+  try {
+    const res  = await fetch('/api/admin/certbot/obtain', {
+      method: 'POST',
+      headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({domain, email, staging, dry_run: dryRun})
+    });
+    const data = await res.json();
+    if (data.success) {
+      msg.textContent = `✅ ${dryRun ? 'ドライラン成功' : '証明書取得完了'}`;
+      showToast(msg.textContent, 'success');
+      if (!dryRun) setTimeout(loadCertStatus, 2000);
+    } else {
+      msg.textContent = '❌ 失敗: ' + (data.output || '');
+      showToast('取得に失敗しました', 'error');
+    }
+    if (data.output) {
+      out.textContent = data.output;
+      out.classList.add('show');
+    }
+  } catch(e) {
+    msg.textContent = '❌ 通信エラー';
+  } finally {
+    setTimeout(() => prog.classList.remove('show'), 10000);
+  }
+}
+
+// ---- Nginx Reload ----
+async function reloadNginx() {
+  const res  = await fetch('/api/admin/certbot/nginx-reload', {method: 'POST'});
+  const data = await res.json();
+  showToast(data.message || (data.success ? 'Nginx リロード完了' : 'リロード失敗'),
+            data.success ? 'success' : 'error');
+}
+
+// ---- Regen Self-Signed ----
+async function regenSelfSigned() {
+  if (!confirm('自己署名証明書を再生成しますか？\n再起動後に有効になります。')) return;
+  const res  = await fetch('/api/admin/cert-regenerate', {method: 'POST'});
+  const data = await res.json();
+  showToast(data.message || (data.status === 'ok' ? '再生成完了' : 'エラー'),
+            data.status === 'ok' ? 'success' : 'error');
+  if (data.status === 'ok') setTimeout(loadCertStatus, 1000);
+}
+
+// ---- Log ----
+async function loadCertLog() {
+  const res  = await fetch('/api/admin/certbot/log');
+  const data = await res.json();
+  const tbody = document.getElementById('certLogBody');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#94a3b8">履歴がありません</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(r => `<tr>
+    <td class="text-muted">${r.created_at}</td>
+    <td><span class="badge ${r.action==='obtain'?'badge-le':'kind-badge-daily'}">${r.action}</span></td>
+    <td>${r.domain || '—'}</td>
+    <td>${r.renewed ? '<span class="badge" style="background:#dcfce7;color:#166534">更新</span>' : '—'}</td>
+    <td>${r.dry_run ? '<span class="badge gray">dry-run</span>' : '—'}</td>
+    <td><span class="badge ${r.success?'badge-ok':'badge-fail'}">${r.success?'成功':'失敗'}</span></td>
+  </tr>`).join('');
+}
+</script>
+{% endblock %}

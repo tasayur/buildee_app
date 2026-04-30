@@ -1,0 +1,166 @@
+{% extends "base.html" %}
+{% block title %}ダッシュボード{% endblock %}
+{% block page_title %}<i class="fa-solid fa-gauge-high"></i> ダッシュボード{% endblock %}
+
+{% block content %}
+<div class="dashboard">
+
+  <!-- KPI Cards -->
+  <div class="kpi-grid">
+    <div class="kpi-card blue">
+      <div class="kpi-icon"><i class="fa-solid fa-people-group"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value" id="kpi-workers">--</div>
+        <div class="kpi-label">本日の入場者</div>
+      </div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-icon"><i class="fa-solid fa-clipboard-list"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value" id="kpi-schedules">--</div>
+        <div class="kpi-label">作業予定</div>
+      </div>
+    </div>
+    <div class="kpi-card orange">
+      <div class="kpi-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value" id="kpi-ky">--</div>
+        <div class="kpi-label">未承認KY</div>
+      </div>
+    </div>
+    <div class="kpi-card red">
+      <div class="kpi-icon"><i class="fa-solid fa-id-card"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value" id="kpi-certs">--</div>
+        <div class="kpi-label">資格期限アラート</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- Dash Grid -->
+  <div class="dash-grid">
+
+    <!-- 本日の作業予定 -->
+    <div class="dash-card">
+      <div class="card-header">
+        <i class="fa-solid fa-calendar-check"></i> 本日の作業予定
+        <a href="/coordination" class="card-link">詳細 →</a>
+      </div>
+      <div class="card-body" id="today-schedules">
+        <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i></div>
+      </div>
+    </div>
+
+    <!-- 資格期限アラート -->
+    <div class="dash-card">
+      <div class="card-header">
+        <i class="fa-solid fa-bell"></i> 資格期限アラート
+        <a href="/safety" class="card-link">詳細 →</a>
+      </div>
+      <div class="card-body" id="cert-alerts">
+        <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i></div>
+      </div>
+    </div>
+
+    <!-- クイックアクション -->
+    <div class="dash-card">
+      <div class="card-header">
+        <i class="fa-solid fa-bolt"></i> クイックアクション
+      </div>
+      <div class="card-body">
+        <div class="quick-actions">
+          <a href="/coordination" class="qa-btn blue">
+            <i class="fa-solid fa-plus"></i> 作業予定
+          </a>
+          <a href="/ky" class="qa-btn orange">
+            <i class="fa-solid fa-shield-halved"></i> KY記録
+          </a>
+          <a href="/attendance" class="qa-btn green">
+            <i class="fa-solid fa-door-open"></i> 入退場
+          </a>
+          <a href="/safety" class="qa-btn purple">
+            <i class="fa-solid fa-user-plus"></i> 作業員登録
+          </a>
+        </div>
+      </div>
+    </div>
+
+    <!-- 現場状況チャート -->
+    <div class="dash-card">
+      <div class="card-header">
+        <i class="fa-solid fa-chart-pie"></i> 現場状況サマリー
+      </div>
+      <div class="card-body" style="display:flex;align-items:center;justify-content:center">
+        <canvas id="summaryChart" style="max-height:200px;max-width:300px"></canvas>
+      </div>
+    </div>
+
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<script>
+// FAB on dashboard → go to coordination
+window.fabAction = function() { location.href = '/coordination'; };
+
+async function loadDashboard() {
+  const res = await fetch('/api/dashboard');
+  const d = await res.json();
+
+  document.getElementById('kpi-workers').textContent   = d.today_workers;
+  document.getElementById('kpi-schedules').textContent = d.today_schedules;
+  document.getElementById('kpi-ky').textContent        = d.pending_ky;
+  document.getElementById('kpi-certs').textContent     = d.expiring_certs;
+
+  // 作業予定
+  const schedDiv = document.getElementById('today-schedules');
+  if (d.recent_schedules.length === 0) {
+    schedDiv.innerHTML = '<div class="empty-state"><i class="fa-solid fa-calendar-xmark"></i> 本日の予定はありません</div>';
+  } else {
+    schedDiv.innerHTML = d.recent_schedules.map(s => `
+      <div class="list-item">
+        <span class="badge blue">${s.company||''}</span>
+        <span style="flex:1;font-size:13px">${s.work_content||''}</span>
+        <span class="text-muted">${s.location||''}</span>
+        <span class="badge green">${s.workers_count||0}名</span>
+      </div>`).join('');
+  }
+
+  // 資格アラート
+  const certDiv = document.getElementById('cert-alerts');
+  if (d.expiring_details.length === 0) {
+    certDiv.innerHTML = '<div class="empty-state"><i class="fa-solid fa-circle-check"></i> 期限切れ間近の資格はありません</div>';
+  } else {
+    certDiv.innerHTML = d.expiring_details.map(c => `
+      <div class="list-item">
+        <i class="fa-solid fa-exclamation-circle text-orange"></i>
+        <span style="flex:1"><b>${c.name}</b> <span class="text-muted">${c.cert}</span></span>
+        <span class="badge ${c.days<=7?'red':'orange'}">${c.days}日後</span>
+      </div>`).join('');
+  }
+
+  // Chart
+  const ctx = document.getElementById('summaryChart').getContext('2d');
+  new Chart(ctx, {
+    type: 'doughnut',
+    data: {
+      labels: ['入場者','作業予定','未承認KY','資格アラート'],
+      datasets: [{
+        data: [d.today_workers, d.today_schedules, d.pending_ky, d.expiring_certs],
+        backgroundColor: ['#3b82f6','#22c55e','#f97316','#ef4444'],
+        borderWidth: 2, borderColor: '#fff'
+      }]
+    },
+    options: {
+      responsive: true,
+      plugins: { legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 12 } } },
+      cutout: '65%'
+    }
+  });
+}
+
+loadDashboard();
+</script>
+{% endblock %}

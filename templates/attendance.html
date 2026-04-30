@@ -1,0 +1,182 @@
+{% extends "base.html" %}
+{% block title %}入退場管理{% endblock %}
+{% block page_title %}<i class="fa-solid fa-door-open"></i> 入退場管理{% endblock %}
+
+{% block content %}
+<!-- ゲートパネル -->
+<div class="gate-panel">
+  <div class="gate-display">
+    <div class="gate-title"><i class="fa-solid fa-shield-check"></i> 現場ゲート</div>
+    <div class="gate-clock" id="gateClock">--:--</div>
+    <div class="gate-date" id="gateDate"></div>
+  </div>
+  <div class="gate-controls">
+    <div class="form-group">
+      <select id="gate_worker" class="gate-select">
+        <option value="">作業員を選択してください</option>
+      </select>
+    </div>
+    <div class="gate-buttons">
+      <button class="gate-btn enter" onclick="doCheckin()">
+        <i class="fa-solid fa-right-to-bracket"></i>
+        <span>入 場</span>
+      </button>
+      <button class="gate-btn exit" onclick="doCheckout()">
+        <i class="fa-solid fa-right-from-bracket"></i>
+        <span>退 場</span>
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- 入退場記録 -->
+<div class="attendance-section">
+  <div class="section-toolbar">
+    <div class="date-picker-wrap">
+      <label>日付：</label>
+      <input type="date" id="attDate" value="{{ today }}" onchange="loadAttendance()">
+    </div>
+    <div class="att-summary" id="attSummary">
+      <span><i class="fa-solid fa-people-group text-blue"></i> <b id="totalCount">0</b>名</span>
+      <span><i class="fa-solid fa-circle text-green"></i> 在場 <b id="presentCount">0</b></span>
+      <span><i class="fa-solid fa-circle text-gray"></i> 退場 <b id="leftCount">0</b></span>
+    </div>
+  </div>
+
+  <!-- Desktop table -->
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr><th>氏名</th><th>会社</th><th>職種</th><th>入場</th><th>退場</th><th>滞在</th><th>状態</th><th>CCUS</th></tr>
+      </thead>
+      <tbody id="attBody">
+        <tr><td colspan="8" class="text-center"><i class="fa-solid fa-spinner fa-spin"></i></td></tr>
+      </tbody>
+    </table>
+  </div>
+
+  <!-- Mobile card list -->
+  <div class="card-list" id="attCardList">
+    <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i></div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let workers = [];
+const today = '{{ today }}';
+
+// FAB → open checkin quick shortcut (scrolls to gate)
+window.fabAction = function() {
+  document.querySelector('.gate-panel').scrollIntoView({behavior:'smooth'});
+  document.getElementById('gate_worker').focus();
+};
+
+// Clock
+function updateClock() {
+  const now = new Date();
+  document.getElementById('gateClock').textContent = now.toLocaleTimeString('ja-JP',{hour:'2-digit',minute:'2-digit'});
+  document.getElementById('gateDate').textContent = now.toLocaleDateString('ja-JP',{year:'numeric',month:'long',day:'numeric',weekday:'long'});
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+async function loadWorkers() {
+  const res = await fetch('/api/workers');
+  workers = await res.json();
+  const sel = document.getElementById('gate_worker');
+  sel.innerHTML = '<option value="">作業員を選択してください</option>';
+  workers.forEach(w => {
+    sel.innerHTML += `<option value="${w.id}" data-name="${w.name}" data-company="${w.company}">${w.name}（${w.company}）</option>`;
+  });
+}
+
+async function loadAttendance() {
+  const date = document.getElementById('attDate').value;
+  const res = await fetch(`/api/attendance?date=${date}`);
+  const data = await res.json();
+  let present = 0, left = 0;
+
+  if (data.length === 0) {
+    document.getElementById('attBody').innerHTML = '<tr><td colspan="8" class="text-center empty-state"><i class="fa-solid fa-calendar-xmark"></i> この日の記録はありません</td></tr>';
+    document.getElementById('attCardList').innerHTML = '<div class="empty-state"><i class="fa-solid fa-calendar-xmark"></i> この日の記録はありません</div>';
+    document.getElementById('totalCount').textContent = 0;
+    document.getElementById('presentCount').textContent = 0;
+    document.getElementById('leftCount').textContent = 0;
+    return;
+  }
+
+  // Desktop rows
+  let rows = '', cards = '';
+  data.forEach(a => {
+    const w = workers.find(x => x.id === a.worker_id) || {};
+    const here = !a.checkout_time;
+    if (here) present++; else left++;
+    const dur = (a.checkin_time && a.checkout_time)
+      ? formatElapsed(elapsedMin(a.checkin_time, a.checkout_time))
+      : here ? '在場中' : '-';
+    rows += `<tr class="${here?'row-present':''}">
+      <td><b>${w.name||a.worker_id}</b></td>
+      <td><span class="badge blue">${w.company||'-'}</span></td>
+      <td>${w.job||'-'}</td>
+      <td><span class="time-badge green">${a.checkin_time}</span></td>
+      <td>${a.checkout_time?`<span class="time-badge gray">${a.checkout_time}</span>`:'<span class="badge orange">在場中</span>'}</td>
+      <td>${dur}</td>
+      <td><span class="badge ${here?'green':'gray'}">${here?'在場中':'退場済'}</span></td>
+      <td><span class="badge ${w.ccus?'purple':'gray'}">${w.ccus?'連携済':'未連携'}</span></td>
+    </tr>`;
+    cards += `<div class="card-list-item ${here?'':''}">
+      <div class="cli-header">
+        <span class="cli-title">${w.name||a.worker_id}</span>
+        <span class="badge ${here?'green':'gray'}">${here?'🟢 在場中':'退場済'}</span>
+      </div>
+      <div class="cli-meta">
+        <span><i class="fa-solid fa-building"></i>${w.company||'-'}</span>
+        <span><i class="fa-solid fa-hard-hat"></i>${w.job||'-'}</span>
+        ${w.ccus?'<span><span class="badge purple">CCUS</span></span>':''}
+      </div>
+      <div style="display:flex;gap:12px;font-size:13px;margin-top:4px">
+        <span><i class="fa-solid fa-right-to-bracket text-green"></i> ${a.checkin_time}</span>
+        ${a.checkout_time?`<span><i class="fa-solid fa-right-from-bracket text-gray"></i> ${a.checkout_time}</span>`:''}
+        <span style="color:#64748b">${dur}</span>
+      </div>
+    </div>`;
+  });
+
+  document.getElementById('attBody').innerHTML = rows;
+  document.getElementById('attCardList').innerHTML = cards;
+  document.getElementById('totalCount').textContent = data.length;
+  document.getElementById('presentCount').textContent = present;
+  document.getElementById('leftCount').textContent = left;
+}
+
+async function doCheckin() {
+  const sel = document.getElementById('gate_worker');
+  const worker_id = sel.value;
+  const worker_name = sel.options[sel.selectedIndex]?.dataset?.name;
+  if (!worker_id) { showToast('作業員を選択してください', 'error'); return; }
+  haptic(15);
+  const body = { worker_id, date: document.getElementById('attDate').value };
+  const res = await fetch('/api/attendance/checkin', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if (!res.ok) { const e=await res.json(); showToast(e.message,'error'); return; }
+  showToast(`✅ ${worker_name} 入場しました`, 'success');
+  loadAttendance();
+}
+
+async function doCheckout() {
+  const sel = document.getElementById('gate_worker');
+  const worker_id = sel.value;
+  const worker_name = sel.options[sel.selectedIndex]?.dataset?.name;
+  if (!worker_id) { showToast('作業員を選択してください', 'error'); return; }
+  haptic(15);
+  const body = { worker_id, date: document.getElementById('attDate').value };
+  const res = await fetch('/api/attendance/checkout', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if (!res.ok) { const e=await res.json(); showToast(e.message,'error'); return; }
+  showToast(`👋 ${worker_name} 退場しました`, 'info');
+  loadAttendance();
+}
+
+loadWorkers().then(() => loadAttendance());
+</script>
+{% endblock %}

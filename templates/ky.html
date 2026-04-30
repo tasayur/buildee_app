@@ -1,0 +1,212 @@
+{% extends "base.html" %}
+{% block title %}電子KY{% endblock %}
+{% block page_title %}<i class="fa-solid fa-triangle-exclamation"></i> 電子KY{% endblock %}
+
+{% block content %}
+<div class="section-toolbar">
+  <div style="font-size:13px;color:#64748b"><i class="fa-solid fa-circle-info"></i> 危険予知（KY）活動の記録</div>
+  <button class="btn btn-primary" id="addKyBtn" onclick="openKYModal()">
+    <i class="fa-solid fa-plus"></i> KYを記録
+  </button>
+</div>
+
+<!-- Desktop Table -->
+<div class="table-wrap">
+  <table class="data-table">
+    <thead>
+      <tr><th>日付</th><th>会社</th><th>作業内容</th><th>危険ポイント</th><th>対策</th><th>危険度</th><th>状態</th><th>操作</th></tr>
+    </thead>
+    <tbody id="kyBody">
+      <tr><td colspan="8" class="text-center"><i class="fa-solid fa-spinner fa-spin"></i></td></tr>
+    </tbody>
+  </table>
+</div>
+
+<!-- Mobile Card List -->
+<div class="card-list" id="kyCardList">
+  <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i></div>
+</div>
+
+<!-- KY登録モーダル -->
+<div id="kyModal" class="modal">
+  <div class="modal-box modal-lg">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-triangle-exclamation"></i> KY記録登録</h3>
+      <button onclick="closeModal('kyModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>日付</label>
+          <input type="date" id="ky_date" value="{{ today }}">
+        </div>
+        <div class="form-group">
+          <label>協力会社 *</label>
+          <select id="ky_company">
+            <option value="">選択してください</option>
+            {% for c in companies %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>本日の作業内容 *</label>
+          <textarea id="ky_work" rows="2" placeholder="例：3階スラブ型枠解体作業"></textarea>
+        </div>
+        <div class="form-group full">
+          <label>⚠️ 危険ポイント *</label>
+          <textarea id="ky_danger" rows="3" placeholder="例：高所からの資材落下、作業員の転落のおそれがある"></textarea>
+        </div>
+        <div class="form-group full">
+          <label>✅ 対策・手順</label>
+          <textarea id="ky_measure" rows="3" placeholder="例：安全帯着用の徹底、立入禁止区域の設置"></textarea>
+        </div>
+        <div class="form-group">
+          <label>確認方法</label>
+          <select id="ky_check">
+            <option>朝礼で確認</option>
+            <option>作業前ミーティング</option>
+            <option>TBM（ツールボックスミーティング）</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>危険度</label>
+          <select id="ky_level">
+            <option value="低">低</option>
+            <option value="中" selected>中</option>
+            <option value="高">高</option>
+          </select>
+        </div>
+        <div class="form-group full">
+          <label>担当者名</label>
+          <input type="text" id="ky_signer" placeholder="現場担当者名">
+        </div>
+      </div>
+      <div class="ky-risk-section">
+        <h4><i class="fa-solid fa-table"></i> リスクアセスメント</h4>
+        <div style="overflow-x:auto">
+          <table class="data-table">
+            <thead><tr><th>危険の種類</th><th>発生確率</th><th>被害の大きさ</th><th>リスクレベル</th></tr></thead>
+            <tbody>
+              <tr>
+                <td><input type="text" id="r1_type" placeholder="例：転落" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:6px"></td>
+                <td><select id="r1_prob" onchange="updateRisk()" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:6px">
+                  <option value="1">低い(1)</option><option value="2" selected>中(2)</option><option value="3">高い(3)</option>
+                </select></td>
+                <td><select id="r1_damage" onchange="updateRisk()" style="width:100%;border:1px solid #e2e8f0;border-radius:6px;padding:6px">
+                  <option value="1">軽微(1)</option><option value="2" selected>中(2)</option><option value="3">重大(3)</option>
+                </select></td>
+                <td id="r1_level" class="risk-level-cell">4</td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('kyModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveKY()"><i class="fa-solid fa-save"></i> 記録する</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+window.fabAction = openKYModal;
+
+async function loadKY() {
+  const res = await fetch('/api/ky');
+  const data = await res.json();
+  const levelColors = {低:'green', 中:'orange', 高:'red'};
+
+  // Desktop
+  const tbody = document.getElementById('kyBody');
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="8" class="text-center empty-state"><i class="fa-solid fa-shield-halved"></i> KY記録はありません</td></tr>';
+  } else {
+    tbody.innerHTML = data.map(k => `
+      <tr>
+        <td>${k.date||'-'}</td>
+        <td><span class="badge blue">${k.company||'-'}</span></td>
+        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${k.work_content||'-'}</td>
+        <td style="max-width:140px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#ef4444">${k.danger_point||'-'}</td>
+        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${k.measure||'-'}</td>
+        <td><span class="badge ${levelColors[k.level]||'orange'}">${k.level||'中'}</span></td>
+        <td><span class="badge ${k.status==='承認済'?'green':'orange'}">${k.status}</span></td>
+        <td>
+          ${k.status!=='承認済'?`<button class="btn-icon green" onclick="approveKY('${k.id}')"><i class="fa-solid fa-check"></i></button>`:''}
+          <button class="btn-icon" onclick="viewKYDetail(${JSON.stringify(k).replace(/"/g,'&quot;')})"><i class="fa-solid fa-eye"></i></button>
+        </td>
+      </tr>`).join('');
+  }
+
+  // Mobile cards
+  const cl = document.getElementById('kyCardList');
+  if (data.length === 0) {
+    cl.innerHTML = '<div class="empty-state"><i class="fa-solid fa-shield-halved"></i> KY記録はありません</div>';
+  } else {
+    cl.innerHTML = data.map(k => `
+      <div class="card-list-item">
+        <div class="cli-header">
+          <span class="cli-title">${k.work_content||'作業内容未入力'}</span>
+          <span class="badge ${k.status==='承認済'?'green':'orange'}">${k.status}</span>
+        </div>
+        <div class="cli-meta">
+          <span><i class="fa-solid fa-calendar"></i>${k.date||'-'}</span>
+          <span><i class="fa-solid fa-building"></i>${k.company||'-'}</span>
+          <span><span class="badge ${levelColors[k.level]||'orange'}">${k.level||'中'}</span></span>
+        </div>
+        <div style="background:#fef2f2;border-radius:8px;padding:8px 10px;font-size:12px;color:#dc2626">
+          <i class="fa-solid fa-exclamation-triangle"></i> ${(k.danger_point||'-').substring(0,60)}${(k.danger_point||'').length>60?'…':''}
+        </div>
+        <div class="cli-actions">
+          ${k.status!=='承認済'?`<button class="btn btn-sm btn-secondary" onclick="approveKY('${k.id}')"><i class="fa-solid fa-check"></i> 承認</button>`:''}
+          <button class="btn btn-sm btn-secondary" onclick="viewKYDetail(${JSON.stringify(k).replace(/"/g,'&quot;')})"><i class="fa-solid fa-eye"></i> 詳細</button>
+        </div>
+      </div>`).join('');
+  }
+}
+
+function openKYModal() { document.getElementById('kyModal').classList.add('open'); updateRisk(); }
+
+function updateRisk() {
+  const p = parseInt(document.getElementById('r1_prob').value||2);
+  const d = parseInt(document.getElementById('r1_damage').value||2);
+  const level = p * d;
+  const cell = document.getElementById('r1_level');
+  if (cell) {
+    cell.textContent = level;
+    cell.className = 'risk-level-cell ' + (level>=6?'text-red':level>=4?'text-orange':'text-green');
+  }
+}
+
+async function saveKY() {
+  const company = document.getElementById('ky_company').value;
+  const work    = document.getElementById('ky_work').value;
+  const danger  = document.getElementById('ky_danger').value;
+  if (!company || !work || !danger) { showToast('会社・作業内容・危険ポイントは必須です', 'error'); return; }
+  const body = {
+    date: document.getElementById('ky_date').value, company, work_content: work,
+    danger_point: danger, measure: document.getElementById('ky_measure').value,
+    check_method: document.getElementById('ky_check').value,
+    level: document.getElementById('ky_level').value,
+    signer: document.getElementById('ky_signer').value
+  };
+  await fetch('/api/ky', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  closeModal('kyModal');
+  loadKY();
+  showToast('KY記録を登録しました', 'success');
+}
+
+async function approveKY(id) {
+  await fetch(`/api/ky/${id}/approve`, {method:'PUT'});
+  loadKY();
+  showToast('KYを承認しました', 'success');
+}
+
+function viewKYDetail(k) {
+  alert(`【KY詳細】\n日付: ${k.date}\n会社: ${k.company}\n作業: ${k.work_content}\n\n⚠️ 危険ポイント:\n${k.danger_point}\n\n✅ 対策:\n${k.measure}`);
+}
+
+loadKY();
+</script>
+{% endblock %}

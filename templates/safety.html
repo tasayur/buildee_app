@@ -1,0 +1,325 @@
+{% extends "base.html" %}
+{% block title %}労務安全{% endblock %}
+{% block page_title %}<i class="fa-solid fa-shield-halved"></i> 労務安全（安全書類・グリーンファイル）{% endblock %}
+
+{% block content %}
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('workers')">作業員名簿</button>
+  <button class="tab-btn" onclick="switchTab('certs')">資格・保険管理</button>
+  <button class="tab-btn" onclick="switchTab('docs')">安全書類</button>
+</div>
+
+<!-- 作業員名簿 -->
+<div id="tab-workers" class="tab-content active">
+  <div class="section-toolbar">
+    <input type="text" id="workerSearch" placeholder="名前・会社で検索..." oninput="filterWorkers()" class="search-input">
+    <button class="btn btn-primary" onclick="openWorkerModal()">
+      <i class="fa-solid fa-user-plus"></i> 作業員登録
+    </button>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr>
+          <th>氏名</th><th>協力会社</th><th>職種</th><th>生年月日</th>
+          <th>血液型</th><th>保険</th><th>緊急連絡先</th><th>CCUS ID</th><th>操作</th>
+        </tr>
+      </thead>
+      <tbody id="workerBody">
+        <tr><td colspan="9" class="text-center"><i class="fa-solid fa-spinner fa-spin"></i></td></tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 資格・保険管理 -->
+<div id="tab-certs" class="tab-content">
+  <div class="cert-grid" id="certGrid">
+    <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i> 読み込み中...</div>
+  </div>
+</div>
+
+<!-- 安全書類 -->
+<div id="tab-docs" class="tab-content">
+  <div class="section-toolbar">
+    <div></div>
+    <button class="btn btn-primary" onclick="openDocModal()">
+      <i class="fa-solid fa-file-circle-plus"></i> 書類提出
+    </button>
+  </div>
+  <div class="docs-grid" id="docsGrid">
+    <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i></div>
+  </div>
+</div>
+
+<!-- 作業員登録モーダル -->
+<div id="workerModal" class="modal">
+  <div class="modal-box modal-lg">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-user-hard-hat"></i> 作業員登録</h3>
+      <button onclick="closeModal('workerModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>氏名 *</label>
+          <input type="text" id="w_name" placeholder="山田 太郎">
+        </div>
+        <div class="form-group">
+          <label>フリガナ</label>
+          <input type="text" id="w_kana" placeholder="ヤマダ タロウ">
+        </div>
+        <div class="form-group">
+          <label>協力会社 *</label>
+          <select id="w_company">
+            <option value="">選択してください</option>
+            {% for c in companies %}
+            <option value="{{ c.name }}">{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>職種</label>
+          <select id="w_job">
+            <option value="鉄筋工">鉄筋工</option>
+            <option value="型枠大工">型枠大工</option>
+            <option value="電気工">電気工</option>
+            <option value="土工">土工</option>
+            <option value="クレーンオペレーター">クレーンオペレーター</option>
+            <option value="溶接工">溶接工</option>
+            <option value="その他">その他</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>生年月日</label>
+          <input type="date" id="w_birth">
+        </div>
+        <div class="form-group">
+          <label>血液型</label>
+          <select id="w_blood">
+            <option value="A">A型</option>
+            <option value="B">B型</option>
+            <option value="O">O型</option>
+            <option value="AB">AB型</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>保険種別</label>
+          <select id="w_insurance">
+            <option value="健康保険・厚生年金">健康保険・厚生年金</option>
+            <option value="国民健康保険">国民健康保険</option>
+            <option value="建設国保">建設国保</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>緊急連絡先</label>
+          <input type="text" id="w_emergency" placeholder="090-0000-0000">
+        </div>
+        <div class="form-group">
+          <label>資格名</label>
+          <input type="text" id="w_cert_name" placeholder="例：玉掛け技能講習">
+        </div>
+        <div class="form-group">
+          <label>資格有効期限</label>
+          <input type="date" id="w_cert_expiry">
+        </div>
+        <div class="form-group full">
+          <label>CCUS技能者ID</label>
+          <input type="text" id="w_ccus" placeholder="14桁のID">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('workerModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveWorker()">登録</button>
+    </div>
+  </div>
+</div>
+
+<!-- 書類提出モーダル -->
+<div id="docModal" class="modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-file-circle-plus"></i> 安全書類提出</h3>
+      <button onclick="closeModal('docModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group">
+          <label>書類種別 *</label>
+          <select id="doc_type">
+            <option value="再下請負通知書">再下請負通知書</option>
+            <option value="作業員名簿">作業員名簿</option>
+            <option value="持込機械等使用届">持込機械等使用届</option>
+            <option value="工事安全衛生計画書">工事安全衛生計画書</option>
+            <option value="火気使用願">火気使用願</option>
+            <option value="新規入場者教育実施報告書">新規入場者教育実施報告書</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label>提出会社 *</label>
+          <select id="doc_company">
+            <option value="">選択してください</option>
+            {% for c in companies %}
+            <option value="{{ c.name }}">{{ c.name }}</option>
+            {% endfor %}
+          </select>
+        </div>
+        <div class="form-group">
+          <label>提出日</label>
+          <input type="date" id="doc_date" value="{{ today }}">
+        </div>
+        <div class="form-group full">
+          <label>備考</label>
+          <input type="text" id="doc_note" placeholder="特記事項">
+        </div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('docModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveDoc()">提出</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+let allWorkers = [];
+const today = '{{ today }}';
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+  if (name === 'workers') renderWorkers(allWorkers);
+  if (name === 'certs') renderCerts();
+  if (name === 'docs') loadDocs();
+}
+
+async function loadWorkers() {
+  const res = await fetch('/api/workers');
+  allWorkers = await res.json();
+  renderWorkers(allWorkers);
+}
+
+function renderWorkers(workers) {
+  const tbody = document.getElementById('workerBody');
+  if (workers.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="9" class="text-center empty-state">作業員が登録されていません</td></tr>'; return;
+  }
+  tbody.innerHTML = workers.map(w => `
+    <tr>
+      <td><b>${w.name}</b><br><small class="text-muted">${w.kana || ''}</small></td>
+      <td><span class="badge blue">${w.company}</span></td>
+      <td>${w.job || '-'}</td>
+      <td>${w.birth || '-'}</td>
+      <td>${w.blood || '-'}</td>
+      <td><span class="badge green">${w.insurance || '-'}</span></td>
+      <td>${w.emergency || '-'}</td>
+      <td><span class="badge ${w.ccus ? 'purple' : 'gray'}">${w.ccus || '未登録'}</span></td>
+      <td><button class="btn-icon red" onclick="deleteWorker('${w.id}')"><i class="fa-solid fa-trash"></i></button></td>
+    </tr>
+  `).join('');
+}
+
+function filterWorkers() {
+  const q = document.getElementById('workerSearch').value.toLowerCase();
+  renderWorkers(allWorkers.filter(w => w.name.toLowerCase().includes(q) || w.company.toLowerCase().includes(q)));
+}
+
+function openWorkerModal() { document.getElementById('workerModal').classList.add('open'); }
+
+async function saveWorker() {
+  const name = document.getElementById('w_name').value;
+  const company = document.getElementById('w_company').value;
+  if (!name || !company) { showToast('氏名と協力会社は必須です', 'error'); return; }
+  const body = {
+    name, kana: document.getElementById('w_kana').value,
+    company, job: document.getElementById('w_job').value,
+    birth: document.getElementById('w_birth').value,
+    blood: document.getElementById('w_blood').value,
+    insurance: document.getElementById('w_insurance').value,
+    emergency: document.getElementById('w_emergency').value,
+    cert_name: document.getElementById('w_cert_name').value,
+    cert_expiry: document.getElementById('w_cert_expiry').value,
+    ccus: document.getElementById('w_ccus').value
+  };
+  await fetch('/api/workers', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  closeModal('workerModal');
+  loadWorkers();
+  showToast('作業員を登録しました', 'success');
+}
+
+async function deleteWorker(id) {
+  if (!confirm('この作業員を削除しますか？')) return;
+  await fetch(`/api/workers/${id}`, { method:'DELETE' });
+  loadWorkers();
+  showToast('削除しました', 'info');
+}
+
+function renderCerts() {
+  const grid = document.getElementById('certGrid');
+  const today_date = new Date();
+  if (allWorkers.length === 0) {
+    grid.innerHTML = '<div class="empty-state">作業員が登録されていません</div>'; return;
+  }
+  grid.innerHTML = allWorkers.filter(w => w.cert_name).map(w => {
+    let status = 'valid', label = '有効', badge = 'green', daysLeft = null;
+    if (w.cert_expiry) {
+      const exp = new Date(w.cert_expiry);
+      daysLeft = Math.floor((exp - today_date) / 86400000);
+      if (daysLeft < 0) { status='expired'; label='期限切れ'; badge='red'; }
+      else if (daysLeft <= 30) { status='warning'; label=daysLeft+'日後'; badge='orange'; }
+    }
+    return `
+      <div class="cert-card ${status}">
+        <div class="cert-header">
+          <span class="badge ${badge}">${label}</span>
+          <span class="cert-name-badge">${w.cert_name}</span>
+        </div>
+        <div class="cert-worker"><i class="fa-solid fa-user"></i> ${w.name}</div>
+        <div class="cert-company text-muted">${w.company}</div>
+        <div class="cert-expiry"><i class="fa-solid fa-calendar"></i> 有効期限: ${w.cert_expiry || '期限なし'}</div>
+      </div>
+    `;
+  }).join('') || '<div class="empty-state">資格情報がありません</div>';
+}
+
+// --- 書類 ---
+async function loadDocs() {
+  const res = await fetch('/api/dashboard');
+  const d = await res.json();
+  // 書類一覧はダミーデータで表示（実際のAPIからも取得可）
+  const docTypes = [
+    {name:'再下請負通知書', icon:'fa-file-contract', color:'blue'},
+    {name:'作業員名簿', icon:'fa-users', color:'green'},
+    {name:'持込機械等使用届', icon:'fa-truck', color:'orange'},
+    {name:'工事安全衛生計画書', icon:'fa-hard-hat', color:'purple'},
+    {name:'火気使用願', icon:'fa-fire', color:'red'},
+    {name:'新規入場者教育実施報告書', icon:'fa-graduation-cap', color:'teal'},
+  ];
+  document.getElementById('docsGrid').innerHTML = docTypes.map(dt => `
+    <div class="doc-type-card">
+      <i class="fa-solid ${dt.icon} fa-2x text-${dt.color}"></i>
+      <h4>${dt.name}</h4>
+      <button class="btn btn-sm btn-secondary" onclick="openDocModal()">提出する</button>
+    </div>
+  `).join('');
+}
+
+function openDocModal() { document.getElementById('docModal').classList.add('open'); }
+async function saveDoc() {
+  const doc_type = document.getElementById('doc_type').value;
+  const company = document.getElementById('doc_company').value;
+  if (!company) { showToast('提出会社は必須です', 'error'); return; }
+  const body = { doc_type, company, date: document.getElementById('doc_date').value, note: document.getElementById('doc_note').value };
+  await fetch('/api/safety_docs', { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(body) });
+  closeModal('docModal');
+  showToast('書類を提出しました', 'success');
+}
+
+loadWorkers();
+</script>
+{% endblock %}

@@ -1,0 +1,229 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+
+  <!-- ===== PWA Meta ===== -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-title" content="BuildeeMgr">
+  <meta name="application-name" content="BuildeeMgr">
+  <meta name="theme-color" content="#1a1a2e">
+  <meta name="description" content="現場の作業予定・KY・安全書類・入退場をデジタル管理する施工管理システム">
+  <meta name="msapplication-TileColor" content="#1a1a2e">
+  <meta name="msapplication-TileImage" content="/static/icons/icon-144x144.png">
+
+  <!-- ===== Manifest ===== -->
+  <link rel="manifest" href="/static/manifest.json">
+
+  <!-- ===== Favicon / Icons ===== -->
+  <link rel="icon" type="image/png" sizes="32x32" href="/static/icons/favicon-32x32.png">
+  <link rel="icon" type="image/png" sizes="16x16" href="/static/icons/favicon-16x16.png">
+  <link rel="apple-touch-icon" href="/static/icons/apple-touch-icon.png">
+  <link rel="apple-touch-icon" sizes="152x152" href="/static/icons/icon-152x152.png">
+  <link rel="apple-touch-icon" sizes="192x192" href="/static/icons/icon-192x192.png">
+
+  <!-- iOS Splash (optional — add images for full splash support) -->
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+
+  <title>{% block title %}施工管理{% endblock %} | BuildeeMgr</title>
+
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+  {% block head %}{% endblock %}
+</head>
+<body>
+
+  <!-- Mobile Sidebar Overlay -->
+  <div class="sidebar-overlay" id="sidebarOverlay" onclick="closeMobileSidebar()"></div>
+
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-logo">
+      <i class="fa-solid fa-helmet-safety"></i>
+      <span>BuildeeMgr</span>
+    </div>
+    <nav class="sidebar-nav">
+      <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}">
+        <i class="fa-solid fa-gauge-high"></i><span>ダッシュボード</span>
+      </a>
+      <div class="nav-section">調整会議</div>
+      <a href="/coordination" class="nav-item {% if request.path == '/coordination' %}active{% endif %}">
+        <i class="fa-solid fa-calendar-days"></i><span>作業予定・調整</span>
+      </a>
+      <div class="nav-section">電子KY</div>
+      <a href="/ky" class="nav-item {% if request.path == '/ky' %}active{% endif %}">
+        <i class="fa-solid fa-triangle-exclamation"></i><span>危険予知活動</span>
+      </a>
+      <div class="nav-section">労務安全</div>
+      <a href="/safety" class="nav-item {% if request.path == '/safety' %}active{% endif %}">
+        <i class="fa-solid fa-shield-halved"></i><span>安全書類・作業員</span>
+      </a>
+      <div class="nav-section">データ出力</div>
+      <a href="/export" class="nav-item {% if request.path == "/export" %}active{% endif %}">
+        <i class="fa-solid fa-file-excel"></i><span>Excelエクスポート</span>
+      </a>
+      <div class="nav-section">入退場</div>
+      <a href="/qr-gate" class="nav-item {% if request.path == "/qr-gate" %}active{% endif %}">
+        <i class="fa-solid fa-qrcode"></i><span>QRコードゲート</span>
+      </a>
+      <a href="/attendance" class="nav-item {% if request.path == '/attendance' %}active{% endif %}">
+        <i class="fa-solid fa-door-open"></i><span>入退場管理</span>
+      </a>
+    </nav>
+    <div class="sidebar-footer">
+      <i class="fa-solid fa-circle-info"></i><span>v1.0.0</span>
+    </div>
+  </aside>
+
+  <!-- Main Wrapper -->
+  <div class="main-wrapper" id="mainWrapper">
+
+    <!-- Topbar -->
+    <header class="topbar">
+      <button class="sidebar-toggle" onclick="toggleSidebar()" aria-label="メニュー">
+        <i class="fa-solid fa-bars"></i>
+      </button>
+      <div class="topbar-title">{% block page_title %}{% endblock %}</div>
+      <div class="topbar-right">
+        <span class="topbar-date" id="currentDate"></span>
+        <!-- PWA install shortcut (hidden until triggered by JS) -->
+        <button id="topbarInstallBtn" onclick="triggerInstall()"
+          style="display:none;background:#f97316;color:#fff;border:none;border-radius:8px;
+                 padding:6px 12px;font-size:12px;font-weight:600;cursor:pointer;gap:5px;
+                 align-items:center">
+          <i class="fa-solid fa-download"></i> <span class="d-sm-inline" style="display:none">追加</span>
+        </button>
+        <div class="user-menu" id="userMenu">
+          <button class="user-badge-btn" onclick="toggleUserMenu()" id="userMenuBtn">
+            <i class="fa-solid fa-user-hard-hat"></i>
+            <span class="user-name-label">{{ current_user.display_name if current_user.is_authenticated else 'ゲスト' }}</span>
+            <i class="fa-solid fa-chevron-down" style="font-size:10px;opacity:0.6"></i>
+          </button>
+          <div class="user-dropdown" id="userDropdown">
+            <div class="ud-header">
+              <div class="ud-name">{{ current_user.display_name if current_user.is_authenticated else '' }}</div>
+              <div class="ud-role">
+                {% if current_user.is_authenticated %}
+                  {% if current_user.role == 'admin' %}管理者
+                  {% elif current_user.role == 'manager' %}現場監督
+                  {% else %}閲覧者{% endif %}
+                  {% if current_user.company %} / {{ current_user.company }}{% endif %}
+                {% endif %}
+              </div>
+            </div>
+            <a href="/change-password" class="ud-item"><i class="fa-solid fa-key"></i> パスワード変更</a>
+            {% if current_user.is_authenticated and current_user.role == 'admin' %}
+            <a href="/admin/users" class="ud-item"><i class="fa-solid fa-users-gear"></i> ユーザー管理</a>
+            <a href="/admin/notifications" class="ud-item"><i class="fa-solid fa-bell"></i> 通知設定</a>
+            <a href="/admin/backup" class="ud-item"><i class="fa-solid fa-database"></i> バックアップ</a>
+            <a href="/admin/cert" class="ud-item"><i class="fa-solid fa-certificate"></i> 証明書管理</a>
+            {% endif %}
+            <div class="ud-divider"></div>
+            <a href="/logout" class="ud-item ud-logout"><i class="fa-solid fa-right-from-bracket"></i> ログアウト</a>
+          </div>
+        </div>
+      </div>
+    </header>
+
+    <!-- Content -->
+    <main class="content">
+      {% with messages = get_flashed_messages(with_categories=true) %}
+        {% if messages %}
+          {% for cat, msg in messages %}
+            <div class="alert alert-{{ cat }}">{{ msg }}</div>
+          {% endfor %}
+        {% endif %}
+      {% endwith %}
+      {% block content %}{% endblock %}
+    </main>
+
+  </div><!-- /main-wrapper -->
+
+  <!-- Bottom Navigation (mobile) -->
+  <nav class="bottom-nav" id="bottomNav">
+    <a href="/" class="bottom-nav-item {% if request.path == '/' %}active{% endif %}">
+      <i class="fa-solid fa-gauge-high"></i><span>ホーム</span>
+    </a>
+    <a href="/coordination" class="bottom-nav-item {% if request.path == '/coordination' %}active{% endif %}">
+      <i class="fa-solid fa-calendar-days"></i><span>調整</span>
+    </a>
+    <a href="/ky" class="bottom-nav-item {% if request.path == '/ky' %}active{% endif %}">
+      <i class="fa-solid fa-triangle-exclamation"></i><span>KY</span>
+    </a>
+    <a href="/safety" class="bottom-nav-item {% if request.path == '/safety' %}active{% endif %}">
+      <i class="fa-solid fa-shield-halved"></i><span>安全</span>
+    </a>
+    <a href="/attendance" class="bottom-nav-item {% if request.path == '/attendance' %}active{% endif %}">
+      <i class="fa-solid fa-door-open"></i><span>入退場</span>
+    </a>
+  </nav>
+
+  <!-- FAB (mobile) -->
+  <button class="fab" id="fabBtn" onclick="fabAction()" aria-label="追加">
+    <i class="fa-solid fa-plus"></i>
+  </button>
+
+  <!-- Toast -->
+  <div id="toast" class="toast"></div>
+
+  <!-- Scripts -->
+  <script src="{{ url_for('static', filename='js/main.js') }}"></script>
+  <script src="{{ url_for('static', filename='js/pwa.js') }}"></script>
+  {% block scripts %}{% endblock %}
+
+  <!-- Topbar install button reveal -->
+  <script>
+    window.addEventListener('beforeinstallprompt', () => {
+      const btn = document.getElementById('topbarInstallBtn');
+      if (btn) btn.style.display = 'flex';
+    });
+  </script>
+
+
+<style>
+.user-menu { position: relative; }
+.user-badge-btn {
+  display: flex; align-items: center; gap: 7px;
+  background: #f1f5f9; border: none; border-radius: 20px;
+  padding: 6px 12px; font-size: 12px; font-weight: 500;
+  cursor: pointer; color: #1e293b; white-space: nowrap;
+  transition: background 0.2s;
+}
+.user-badge-btn:hover { background: #e2e8f0; }
+.user-name-label { max-width: 100px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.user-dropdown {
+  display: none; position: absolute; top: calc(100% + 8px); right: 0;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 14px;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.12); min-width: 200px; z-index: 999;
+  overflow: hidden; animation: ddFade 0.18s ease;
+}
+@keyframes ddFade { from{opacity:0;transform:translateY(-6px)} to{opacity:1;transform:translateY(0)} }
+.user-dropdown.open { display: block; }
+.ud-header { padding: 13px 16px 10px; border-bottom: 1px solid #f1f5f9; }
+.ud-name   { font-weight: 700; font-size: 14px; color: #1e293b; }
+.ud-role   { font-size: 11px; color: #94a3b8; margin-top: 2px; }
+.ud-item   { display: flex; align-items: center; gap: 9px; padding: 10px 16px; font-size: 13px; color: #475569; text-decoration: none; transition: background 0.15s; }
+.ud-item:hover { background: #f8fafc; color: #1e293b; }
+.ud-item i { width: 16px; text-align: center; color: #64748b; }
+.ud-divider { height: 1px; background: #f1f5f9; margin: 4px 0; }
+.ud-logout { color: #dc2626 !important; }
+.ud-logout i { color: #dc2626 !important; }
+.ud-logout:hover { background: #fef2f2 !important; }
+</style>
+<script>
+function toggleUserMenu() {
+  document.getElementById('userDropdown').classList.toggle('open');
+}
+document.addEventListener('click', function(e) {
+  const menu = document.getElementById('userMenu');
+  if (menu && !menu.contains(e.target)) {
+    document.getElementById('userDropdown')?.classList.remove('open');
+  }
+});
+</script>
+
+</body>
+</html>

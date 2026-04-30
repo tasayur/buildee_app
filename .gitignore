@@ -1,0 +1,39 @@
+# ===== BuildeeMgr .gitignore =====
+
+# Secrets & certificates (NEVER commit)
+.env
+certs/
+*.key
+*.pem
+*.crt
+
+# Database
+buildee.db
+buildee.db-wal
+buildee.db-shm
+data.json
+data.json.bak
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+.venv/
+venv/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+_scan.py
+_*.py
+*.backup
+backups/

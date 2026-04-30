@@ -1,0 +1,354 @@
+{% extends "base.html" %}
+{% block title %}管理者設定{% endblock %}
+{% block page_title %}<i class="fa-solid fa-users-gear"></i> 管理者設定{% endblock %}
+
+{% block head %}
+<style>
+  .role-badge-admin   { background:#fef2f2;color:#dc2626; }
+  .role-badge-manager { background:#fff7ed;color:#c2410c; }
+  .role-badge-viewer  { background:#dbeafe;color:#1d4ed8; }
+  .status-active   { color:#22c55e; }
+  .status-inactive { color:#ef4444; }
+
+  /* TLS card */
+  .tls-grid { display:grid; grid-template-columns:1fr 1fr; gap:16px; }
+  .tls-card {
+    background:#f8fafc; border-radius:12px; padding:18px;
+    border:1px solid #e2e8f0;
+  }
+  .tls-card h4 { font-size:13px; font-weight:700; margin-bottom:12px; display:flex; align-items:center; gap:8px; }
+  .tls-row { display:flex; justify-content:space-between; font-size:13px; padding:5px 0; border-bottom:1px solid #f1f5f9; }
+  .tls-row:last-child { border:none; }
+  .tls-label { color:#64748b; }
+  .tls-val   { font-weight:600; font-family:monospace; font-size:12px; }
+  .badge-https-on  { background:#dcfce7;color:#166534; }
+  .badge-https-off { background:#fef2f2;color:#dc2626; }
+
+  /* Security checklist */
+  .sec-list { display:flex; flex-direction:column; gap:8px; }
+  .sec-item { display:flex; align-items:center; gap:10px; font-size:13px; padding:8px 12px; border-radius:8px; background:#f8fafc; }
+  .sec-ok   { color:#22c55e; }
+  .sec-warn { color:#f97316; }
+  .sec-err  { color:#ef4444; }
+
+  @media (max-width:768px) { .tls-grid { grid-template-columns:1fr; } }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('users')">ユーザー一覧</button>
+  <button class="tab-btn" onclick="switchTab('tls')">HTTPS / TLS証明書</button>
+  <button class="tab-btn" onclick="switchTab('log')">ログイン履歴</button>
+</div>
+
+<!-- ===== Users tab ===== -->
+<div id="tab-users" class="tab-content active">
+  <div class="section-toolbar">
+    <div></div>
+    <button class="btn btn-primary" onclick="openAddModal()">
+      <i class="fa-solid fa-user-plus"></i> ユーザー追加
+    </button>
+  </div>
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead>
+        <tr><th>ユーザー名</th><th>表示名</th><th>権限</th><th>会社</th><th>最終ログイン</th><th>状態</th><th>操作</th></tr>
+      </thead>
+      <tbody>
+        {% for u in users %}
+        <tr>
+          <td><b>{{ u.username }}</b></td>
+          <td>{{ u.display_name }}</td>
+          <td>{% set rl = role_labels.get(u.role, (u.role,'gray')) %}
+            <span class="badge role-badge-{{ u.role }}">{{ rl[0] }}</span></td>
+          <td>{{ u.company or '—' }}</td>
+          <td class="text-muted">{{ u.last_login or '未ログイン' }}</td>
+          <td><span class="{{ 'status-active' if u.is_active else 'status-inactive' }}">
+            <i class="fa-solid fa-circle" style="font-size:8px"></i>
+            {{ '有効' if u.is_active else '無効' }}</span></td>
+          <td>
+            <button class="btn-icon" onclick="openEditModal({{ u|tojson }})"><i class="fa-solid fa-pen"></i></button>
+            <button class="btn-icon" onclick="openResetModal('{{ u.id }}','{{ u.username }}')"><i class="fa-solid fa-key"></i></button>
+            {% if u.id != current_user.id %}
+            <button class="btn-icon red" onclick="deleteUser('{{ u.id }}','{{ u.username }}')"><i class="fa-solid fa-trash"></i></button>
+            {% endif %}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== TLS tab ===== -->
+<div id="tab-tls" class="tab-content">
+  <div class="tls-grid">
+
+    <!-- Status card -->
+    <div class="tls-card">
+      <h4><i class="fa-solid fa-lock {% if https_enabled %}text-green{% else %}text-red{% endif %}"></i>
+          HTTPS ステータス</h4>
+      <div class="tls-row">
+        <span class="tls-label">HTTPS</span>
+        <span class="badge {% if https_enabled %}badge-https-on{% else %}badge-https-off{% endif %}">
+          {% if https_enabled %}有効{% else %}無効{% endif %}
+        </span>
+      </div>
+      {% if cert_info.exists %}
+      <div class="tls-row"><span class="tls-label">コモンネーム</span><span class="tls-val">{{ cert_info.cn }}</span></div>
+      <div class="tls-row"><span class="tls-label">有効期限</span>
+        <span class="tls-val {% if cert_info.not_after < '2025-01-01' %}text-red{% else %}text-green{% endif %}">
+          {{ cert_info.not_after }}
+        </span>
+      </div>
+      <div class="tls-row"><span class="tls-label">シリアル</span><span class="tls-val">{{ cert_info.serial }}…</span></div>
+      <div class="tls-row"><span class="tls-label">証明書ファイル</span>
+        <span class="tls-val" style="font-size:10px;word-break:break-all">{{ cert_info.cert_file }}</span>
+      </div>
+      {% else %}
+      <div class="tls-row"><span class="tls-label">証明書</span><span class="badge gray">未生成</span></div>
+      {% endif %}
+      <div style="margin-top:14px;display:flex;gap:8px">
+        <button class="btn btn-sm btn-secondary" onclick="regenCert()">
+          <i class="fa-solid fa-rotate"></i> 証明書を再生成
+        </button>
+      </div>
+    </div>
+
+    <!-- Security checklist -->
+    <div class="tls-card">
+      <h4><i class="fa-solid fa-shield-halved text-blue"></i> セキュリティチェック</h4>
+      <div class="sec-list">
+        <div class="sec-item">
+          <i class="fa-solid fa-circle-check sec-ok"></i>
+          bcrypt パスワードハッシュ
+        </div>
+        <div class="sec-item">
+          <i class="fa-solid {% if https_enabled %}fa-circle-check sec-ok{% else %}fa-circle-xmark sec-err{% endif %}"></i>
+          HTTPS 通信暗号化
+        </div>
+        <div class="sec-item">
+          <i class="fa-solid {% if https_enabled %}fa-circle-check sec-ok{% else %}fa-triangle-exclamation sec-warn{% endif %}"></i>
+          HSTS ヘッダー
+        </div>
+        <div class="sec-item">
+          <i class="fa-solid fa-circle-check sec-ok"></i>
+          Content-Security-Policy
+        </div>
+        <div class="sec-item">
+          <i class="fa-solid fa-circle-check sec-ok"></i>
+          X-Frame-Options: DENY
+        </div>
+        <div class="sec-item">
+          <i class="fa-solid fa-circle-check sec-ok"></i>
+          Secure Cookie フラグ
+        </div>
+        <div class="sec-item">
+          <i class="fa-solid fa-circle-check sec-ok"></i>
+          ログイン試行ログ
+        </div>
+        <div class="sec-item">
+          <i class="fa-solid fa-circle-check sec-ok"></i>
+          ロールベースアクセス制御（RBAC）
+        </div>
+      </div>
+    </div>
+
+    <!-- .env guide card -->
+    <div class="tls-card" style="grid-column:1/-1">
+      <h4><i class="fa-solid fa-file-code text-orange"></i> 本番環境設定ガイド（.env）</h4>
+      <div style="font-size:12px;color:#64748b;line-height:1.8">
+        <p style="margin-bottom:8px">Let's Encrypt などの正式な証明書を使用する場合は <code>.env</code> に以下を設定：</p>
+        <pre style="background:#1a1a2e;color:#e2e8f0;border-radius:8px;padding:14px;font-size:12px;overflow-x:auto">CERT_FILE=/etc/letsencrypt/live/yourdomain.com/fullchain.pem
+KEY_FILE=/etc/letsencrypt/live/yourdomain.com/privkey.pem
+HTTPS_PORT=443
+HTTP_PORT=80
+HSTS_MAX_AGE=31536000
+SECRET_KEY=<32文字以上のランダム文字列に変更></pre>
+        <p style="margin-top:10px">
+          <i class="fa-solid fa-triangle-exclamation text-orange"></i>
+          本番環境では必ず <code>SECRET_KEY</code> を変更し、<code>.env</code> のパーミッションを <code>600</code> に設定してください。
+        </p>
+      </div>
+    </div>
+
+  </div>
+</div>
+
+<!-- ===== Login log tab ===== -->
+<div id="tab-log" class="tab-content">
+  <div class="table-wrap">
+    <table class="data-table">
+      <thead><tr><th>日時</th><th>ユーザー名</th><th>アクション</th><th>IPアドレス</th><th>結果</th></tr></thead>
+      <tbody>
+        {% for l in log %}
+        <tr>
+          <td class="text-muted">{{ l.created_at }}</td>
+          <td><b>{{ l.username or '—' }}</b></td>
+          <td>{{ l.action }}</td>
+          <td class="text-muted">{{ l.ip or '—' }}</td>
+          <td><span class="badge {{ 'green' if l.success else 'red' }}">{{ '成功' if l.success else '失敗' }}</span></td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- ===== Modals ===== -->
+<div id="addModal" class="modal">
+  <div class="modal-box">
+    <div class="modal-header"><h3><i class="fa-solid fa-user-plus"></i> ユーザー追加</h3><button onclick="closeModal('addModal')">✕</button></div>
+    <div class="modal-body">
+      <div class="form-grid">
+        <div class="form-group"><label>ユーザー名 *</label><input type="text" id="add_username" placeholder="英数字"></div>
+        <div class="form-group"><label>表示名 *</label><input type="text" id="add_display" placeholder="山田 太郎"></div>
+        <div class="form-group"><label>パスワード（8文字以上）*</label><input type="password" id="add_password"></div>
+        <div class="form-group"><label>権限</label>
+          <select id="add_role">
+            <option value="viewer">閲覧者</option>
+            <option value="manager">現場監督</option>
+            <option value="admin">管理者</option>
+          </select></div>
+        <div class="form-group full"><label>会社名</label><input type="text" id="add_company" placeholder="所属会社"></div>
+      </div>
+      <div id="addError" style="color:#dc2626;font-size:13px;margin-top:8px;display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('addModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="addUser()">追加</button>
+    </div>
+  </div>
+</div>
+
+<div id="editModal" class="modal">
+  <div class="modal-box">
+    <div class="modal-header"><h3><i class="fa-solid fa-pen"></i> ユーザー編集</h3><button onclick="closeModal('editModal')">✕</button></div>
+    <div class="modal-body">
+      <input type="hidden" id="edit_id">
+      <div class="form-grid">
+        <div class="form-group full"><label>表示名</label><input type="text" id="edit_display"></div>
+        <div class="form-group"><label>権限</label>
+          <select id="edit_role">
+            <option value="viewer">閲覧者</option>
+            <option value="manager">現場監督</option>
+            <option value="admin">管理者</option>
+          </select></div>
+        <div class="form-group"><label>状態</label>
+          <select id="edit_active"><option value="1">有効</option><option value="0">無効</option></select></div>
+        <div class="form-group full"><label>会社名</label><input type="text" id="edit_company"></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('editModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="saveEdit()">保存</button>
+    </div>
+  </div>
+</div>
+
+<div id="resetModal" class="modal">
+  <div class="modal-box">
+    <div class="modal-header"><h3><i class="fa-solid fa-key"></i> パスワードリセット</h3><button onclick="closeModal('resetModal')">✕</button></div>
+    <div class="modal-body">
+      <p style="font-size:13px;color:#64748b;margin-bottom:14px"><b id="resetUserLabel"></b> のパスワードをリセットします</p>
+      <input type="hidden" id="reset_id">
+      <div class="form-group"><label>新しいパスワード（8文字以上）</label><input type="password" id="reset_password"></div>
+      <div id="resetError" style="color:#dc2626;font-size:13px;margin-top:8px;display:none"></div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('resetModal')">キャンセル</button>
+      <button class="btn btn-primary" onclick="resetPassword()">リセット</button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function openAddModal() {
+  document.getElementById('addError').style.display = 'none';
+  document.getElementById('addModal').classList.add('open');
+}
+
+async function addUser() {
+  const errEl = document.getElementById('addError'); errEl.style.display = 'none';
+  const body = {
+    username:     document.getElementById('add_username').value.trim(),
+    display_name: document.getElementById('add_display').value.trim(),
+    password:     document.getElementById('add_password').value,
+    role:         document.getElementById('add_role').value,
+    company:      document.getElementById('add_company').value.trim(),
+  };
+  if (!body.username || !body.display_name || !body.password) {
+    errEl.textContent = 'ユーザー名・表示名・パスワードは必須です'; errEl.style.display = 'block'; return;
+  }
+  const res  = await fetch('/api/admin/users', {method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  const data = await res.json();
+  if (res.ok) { closeModal('addModal'); showToast('ユーザーを追加しました','success'); setTimeout(()=>location.reload(),800); }
+  else { errEl.textContent = data.message||'エラー'; errEl.style.display = 'block'; }
+}
+
+function openEditModal(u) {
+  document.getElementById('edit_id').value      = u.id;
+  document.getElementById('edit_display').value = u.display_name;
+  document.getElementById('edit_role').value    = u.role;
+  document.getElementById('edit_active').value  = u.is_active ? '1' : '0';
+  document.getElementById('edit_company').value = u.company || '';
+  document.getElementById('editModal').classList.add('open');
+}
+
+async function saveEdit() {
+  const uid  = document.getElementById('edit_id').value;
+  const body = { display_name:document.getElementById('edit_display').value.trim(),
+    role:document.getElementById('edit_role').value,
+    is_active:parseInt(document.getElementById('edit_active').value),
+    company:document.getElementById('edit_company').value.trim() };
+  const res = await fetch(`/api/admin/users/${uid}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+  if (res.ok) { closeModal('editModal'); showToast('更新しました','success'); setTimeout(()=>location.reload(),800); }
+  else showToast('更新に失敗しました','error');
+}
+
+function openResetModal(uid, username) {
+  document.getElementById('reset_id').value = uid;
+  document.getElementById('resetUserLabel').textContent = username;
+  document.getElementById('reset_password').value = '';
+  document.getElementById('resetError').style.display = 'none';
+  document.getElementById('resetModal').classList.add('open');
+}
+
+async function resetPassword() {
+  const errEl = document.getElementById('resetError');
+  const uid = document.getElementById('reset_id').value;
+  const pw  = document.getElementById('reset_password').value;
+  if (pw.length < 8) { errEl.textContent='パスワードは8文字以上'; errEl.style.display='block'; return; }
+  const res  = await fetch(`/api/admin/users/${uid}/reset-password`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({password:pw})});
+  const data = await res.json();
+  if (res.ok) { closeModal('resetModal'); showToast('パスワードをリセットしました','success'); }
+  else { errEl.textContent=data.message; errEl.style.display='block'; }
+}
+
+async function deleteUser(uid, username) {
+  if (!confirm(`${username} を削除しますか？`)) return;
+  const res  = await fetch(`/api/admin/users/${uid}`,{method:'DELETE'});
+  const data = await res.json();
+  if (res.ok) { showToast('削除しました','info'); setTimeout(()=>location.reload(),800); }
+  else showToast(data.message||'削除に失敗しました','error');
+}
+
+async function regenCert() {
+  if (!confirm('TLS証明書を再生成しますか？\n再起動後に新しい証明書が適用されます。')) return;
+  const res  = await fetch('/api/admin/cert-regenerate', {method:'POST'});
+  const data = await res.json();
+  showToast(data.message || (res.ok ? '再生成しました' : 'エラー'), res.ok ? 'success' : 'error');
+  if (res.ok) setTimeout(() => location.reload(), 1500);
+}
+</script>
+{% endblock %}

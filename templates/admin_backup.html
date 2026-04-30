@@ -1,0 +1,445 @@
+{% extends "base.html" %}
+{% block title %}バックアップ管理{% endblock %}
+{% block page_title %}<i class="fa-solid fa-database"></i> バックアップ管理{% endblock %}
+
+{% block head %}
+<style>
+  .stat-row { display:flex; gap:12px; margin-bottom:18px; flex-wrap:wrap; }
+  .stat-box { flex:1; min-width:110px; background:#fff; border:1px solid #e2e8f0;
+              border-radius:10px; padding:14px; text-align:center; }
+  .stat-num  { font-size:24px; font-weight:800; color:#1e293b; }
+  .stat-label{ font-size:11px; color:#94a3b8; margin-top:3px; }
+
+  .backup-card { background:#f8fafc; border:1px solid #e2e8f0; border-radius:14px; padding:20px; margin-bottom:16px; }
+  .backup-card h3 { font-size:14px; font-weight:700; margin-bottom:14px; display:flex; align-items:center; gap:8px; }
+
+  .kind-badge-manual  { background:#dbeafe; color:#1d4ed8; }
+  .kind-badge-daily   { background:#dcfce7; color:#166534; }
+  .kind-badge-weekly  { background:#fff7ed; color:#c2410c; }
+  .kind-badge-monthly { background:#fdf4ff; color:#7e22ce; }
+
+  .backup-row { display:flex; align-items:center; gap:8px; padding:10px 0;
+                border-bottom:1px solid #f1f5f9; flex-wrap:wrap; }
+  .backup-row:last-child { border:none; }
+  .backup-info { flex:1; min-width:0; }
+  .backup-name { font-size:13px; font-weight:600; font-family:monospace;
+                 overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .backup-meta { font-size:11px; color:#94a3b8; margin-top:2px; }
+  .backup-actions { display:flex; gap:6px; flex-shrink:0; }
+
+  .progress-wrap { display:none; background:#f1f5f9; border-radius:8px; padding:14px;
+                   margin-top:12px; align-items:center; gap:10px; }
+  .progress-wrap.show { display:flex; }
+  .spinner { width:20px;height:20px;border:3px solid #e2e8f0;border-top-color:#f97316;
+             border-radius:50%;animation:spin .7s linear infinite;flex-shrink:0; }
+  @keyframes spin{to{transform:rotate(360deg)}}
+
+  .restore-check { display:flex; align-items:center; gap:8px; margin:6px 0;
+                   font-size:13px; }
+  .restore-check input[type=checkbox] { accent-color:#f97316; width:16px; height:16px; }
+
+  .setting-row { display:flex; align-items:center; justify-content:space-between;
+                 padding:8px 0; border-bottom:1px solid #f1f5f9; }
+  .setting-row:last-child { border:none; }
+  .setting-row label { font-size:13px; color:#475569; }
+  .switch{position:relative;display:inline-block;width:42px;height:24px}
+  .switch input{opacity:0;width:0;height:0}
+  .slider{position:absolute;cursor:pointer;inset:0;background:#cbd5e1;border-radius:24px;transition:.3s}
+  .slider:before{content:'';position:absolute;height:18px;width:18px;left:3px;bottom:3px;
+                 background:#fff;border-radius:50%;transition:.3s}
+  input:checked+.slider{background:#f97316}
+  input:checked+.slider:before{transform:translateX(18px)}
+
+  .log-table td,th{font-size:12px}
+  .badge-ok  {background:#dcfce7;color:#166534}
+  .badge-fail{background:#fef2f2;color:#dc2626}
+
+  @media(max-width:600px){.backup-actions{width:100%}}
+</style>
+{% endblock %}
+
+{% block content %}
+
+<!-- Stats -->
+<div class="stat-row" id="statsRow">
+  <div class="stat-box"><div class="stat-num" id="stTotal">—</div><div class="stat-label">総バックアップ数</div></div>
+  <div class="stat-box"><div class="stat-num" id="stSize" style="color:#3b82f6">—</div><div class="stat-label">合計サイズ</div></div>
+  <div class="stat-box"><div class="stat-num" id="stDaily" style="color:#22c55e">—</div><div class="stat-label">日次</div></div>
+  <div class="stat-box"><div class="stat-num" id="stWeekly" style="color:#f97316">—</div><div class="stat-label">週次</div></div>
+  <div class="stat-box"><div class="stat-num" id="stMonthly" style="color:#8b5cf6">—</div><div class="stat-label">月次</div></div>
+  <div class="stat-box"><div class="stat-num" id="stManual" style="color:#64748b">—</div><div class="stat-label">手動</div></div>
+</div>
+
+<div class="tab-bar">
+  <button class="tab-btn active" onclick="switchTab('list')">バックアップ一覧</button>
+  <button class="tab-btn" onclick="switchTab('settings')">スケジュール設定</button>
+  <button class="tab-btn" onclick="switchTab('log')">実行履歴</button>
+</div>
+
+<!-- ===== 一覧タブ ===== -->
+<div id="tab-list" class="tab-content active">
+
+  <!-- 手動実行カード -->
+  <div class="backup-card">
+    <h3><i class="fa-solid fa-play text-orange"></i> 手動バックアップ</h3>
+    <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-primary" onclick="runBackup('manual')">
+        <i class="fa-solid fa-database"></i> 今すぐ作成
+      </button>
+      <span style="font-size:12px;color:#64748b">DB・設定ファイル・証明書を ZIP で保存します</span>
+    </div>
+    <div class="progress-wrap" id="runProgress">
+      <div class="spinner"></div>
+      <span id="runProgressMsg" style="font-size:13px;color:#475569">バックアップ作成中...</span>
+    </div>
+  </div>
+
+  <!-- バックアップ一覧 -->
+  <div class="backup-card">
+    <h3>
+      <i class="fa-solid fa-list text-blue"></i> 保存済みバックアップ
+      <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="loadList()">
+        <i class="fa-solid fa-rotate"></i>
+      </button>
+    </h3>
+    <div id="backupList"><p style="color:#94a3b8;font-size:13px">読み込み中...</p></div>
+  </div>
+</div>
+
+<!-- ===== 設定タブ ===== -->
+<div id="tab-settings" class="tab-content">
+  <div class="backup-card" style="max-width:560px">
+    <h3><i class="fa-solid fa-clock text-purple"></i> 自動バックアップ スケジュール</h3>
+    <div class="setting-row">
+      <label>自動バックアップを有効化</label>
+      <label class="switch"><input type="checkbox" id="sEnabled"><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <label>実行時刻（毎日）</label>
+      <div style="display:flex;align-items:center;gap:6px">
+        <input type="number" id="sHour" min="0" max="23" value="2"
+               style="width:60px;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:14px">
+        <span style="font-size:12px;color:#64748b">時（24h）</span>
+      </div>
+    </div>
+    <div class="setting-row">
+      <label>バックアップ完了をメール通知</label>
+      <label class="switch"><input type="checkbox" id="sNotify"><span class="slider"></span></label>
+    </div>
+    <div style="margin-top:16px;border-top:1px solid #e2e8f0;padding-top:14px">
+      <p style="font-size:13px;font-weight:600;margin-bottom:10px">世代保持数</p>
+      <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px">
+        <div>
+          <label style="font-size:12px;color:#64748b;display:block;margin-bottom:4px">
+            <span class="badge kind-badge-daily">日次</span>
+          </label>
+          <input type="number" id="sKeepDaily" min="1" max="30"
+                 style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:14px">
+        </div>
+        <div>
+          <label style="font-size:12px;color:#64748b;display:block;margin-bottom:4px">
+            <span class="badge kind-badge-weekly">週次</span>
+          </label>
+          <input type="number" id="sKeepWeekly" min="1" max="12"
+                 style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:14px">
+        </div>
+        <div>
+          <label style="font-size:12px;color:#64748b;display:block;margin-bottom:4px">
+            <span class="badge kind-badge-monthly">月次</span>
+          </label>
+          <input type="number" id="sKeepMonthly" min="1" max="12"
+                 style="width:100%;padding:6px 10px;border-radius:8px;border:1px solid #e2e8f0;font-size:14px">
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:16px">
+      <button class="btn btn-primary" onclick="saveSettings()">
+        <i class="fa-solid fa-save"></i> 保存
+      </button>
+    </div>
+
+    <!-- Schedule summary -->
+    <div style="margin-top:18px;background:#fff;border:1px solid #e2e8f0;border-radius:10px;padding:14px">
+      <p style="font-size:12px;font-weight:700;margin-bottom:8px;color:#475569">
+        <i class="fa-solid fa-calendar-alt"></i> スケジュール概要
+      </p>
+      <div style="font-size:12px;color:#64748b;line-height:2">
+        <div>🟢 <strong>毎日</strong>：指定時刻にバックアップ（直近 <span id="sumDaily">7</span> 日分保持）</div>
+        <div>🟠 <strong>毎週日曜</strong>：週次バックアップ（直近 <span id="sumWeekly">4</span> 週分保持）</div>
+        <div>🟣 <strong>毎月1日</strong>：月次バックアップ（直近 <span id="sumMonthly">3</span> ヶ月分保持）</div>
+        <div>⚪ <strong>手動</strong>：最大10世代保持</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- ===== 実行履歴タブ ===== -->
+<div id="tab-log" class="tab-content">
+  <div class="table-wrap">
+    <table class="data-table log-table">
+      <thead><tr><th>日時</th><th>種別</th><th>ファイル名</th><th>サイズ</th><th>所要時間</th><th>結果</th></tr></thead>
+      <tbody id="logBody"><tr><td colspan="6" style="text-align:center;color:#94a3b8">読み込み中...</td></tr></tbody>
+    </table>
+  </div>
+</div>
+
+<!-- 復元モーダル -->
+<div id="restoreModal" class="modal">
+  <div class="modal-box">
+    <div class="modal-header">
+      <h3><i class="fa-solid fa-rotate-left"></i> バックアップから復元</h3>
+      <button onclick="closeModal('restoreModal')">✕</button>
+    </div>
+    <div class="modal-body">
+      <input type="hidden" id="restoreFilename">
+      <p style="font-size:13px;color:#dc2626;margin-bottom:14px">
+        <i class="fa-solid fa-triangle-exclamation"></i>
+        復元前に現在のデータが自動バックアップされます。復元対象を選択してください。
+      </p>
+      <p style="font-size:13px;font-weight:600;margin-bottom:8px" id="restoreFileLabel"></p>
+      <div id="restoreTargets">
+        <div class="restore-check"><input type="checkbox" id="rt_db" value="buildee.db" checked><label for="rt_db">データベース（buildee.db）</label></div>
+        <div class="restore-check"><input type="checkbox" id="rt_env" value=".env"><label for="rt_env">設定ファイル（.env）</label></div>
+        <div class="restore-check"><input type="checkbox" id="rt_cert" value="certs/buildee.crt"><label for="rt_cert">TLS証明書 (.crt)</label></div>
+        <div class="restore-check"><input type="checkbox" id="rt_key" value="certs/buildee.key"><label for="rt_key">TLS秘密鍵 (.key)</label></div>
+      </div>
+    </div>
+    <div class="modal-footer">
+      <button class="btn btn-secondary" onclick="closeModal('restoreModal')">キャンセル</button>
+      <button class="btn btn-danger" onclick="doRestore()">
+        <i class="fa-solid fa-rotate-left"></i> 復元する
+      </button>
+    </div>
+  </div>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const KIND_COLORS = {
+  manual:  { cls:'kind-badge-manual',  label:'手動' },
+  daily:   { cls:'kind-badge-daily',   label:'日次' },
+  weekly:  { cls:'kind-badge-weekly',  label:'週次' },
+  monthly: { cls:'kind-badge-monthly', label:'月次' },
+};
+
+window.addEventListener('DOMContentLoaded', () => {
+  loadList();
+  loadSettings();
+  loadLog();
+});
+
+function switchTab(name) {
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  event.target.classList.add('active');
+}
+
+function fmtSize(bytes) {
+  if (!bytes) return '—';
+  if (bytes < 1024)     return bytes + ' B';
+  if (bytes < 1048576)  return (bytes/1024).toFixed(1) + ' KB';
+  return (bytes/1048576).toFixed(2) + ' MB';
+}
+
+// ---- List ----
+async function loadList() {
+  const res  = await fetch('/api/backup/list');
+  const data = await res.json();
+  const s    = data.stats;
+
+  // Stats
+  document.getElementById('stTotal').textContent   = s.total;
+  document.getElementById('stSize').textContent    = fmtSize(s.total_size);
+  document.getElementById('stDaily').textContent   = s.by_kind.daily   || 0;
+  document.getElementById('stWeekly').textContent  = s.by_kind.weekly  || 0;
+  document.getElementById('stMonthly').textContent = s.by_kind.monthly || 0;
+  document.getElementById('stManual').textContent  = s.by_kind.manual  || 0;
+
+  const el = document.getElementById('backupList');
+  if (!data.backups.length) {
+    el.innerHTML = '<p style="color:#94a3b8;font-size:13px">バックアップがありません。「今すぐ作成」で最初のバックアップを作成してください。</p>';
+    return;
+  }
+  el.innerHTML = data.backups.map(b => {
+    const k    = KIND_COLORS[b.kind] || { cls:'kind-badge-manual', label: b.kind };
+    const ts   = b.timestamp ? b.timestamp.replace('_',' ').replace(/(\d{4})(\d{2})(\d{2}) (\d{2})(\d{2})(\d{2})/,'$1/$2/$3 $4:$5:$6') : '—';
+    const sha  = b.sha256 ? b.sha256.substring(0,12)+'…' : '—';
+    return `<div class="backup-row">
+      <div class="backup-info">
+        <div class="backup-name">${b.filename}</div>
+        <div class="backup-meta">
+          <span class="badge ${k.cls}">${k.label}</span>
+          ${ts} &nbsp;|&nbsp; ${fmtSize(b.size)} &nbsp;|&nbsp; SHA256: ${sha}
+        </div>
+      </div>
+      <div class="backup-actions">
+        <button class="btn-icon" title="整合性チェック" onclick="verifyBackup('${b.filename}')">
+          <i class="fa-solid fa-shield-check"></i>
+        </button>
+        <a class="btn-icon" href="/api/backup/download/${b.filename}" title="ダウンロード" download>
+          <i class="fa-solid fa-download"></i>
+        </a>
+        <button class="btn-icon" title="復元" onclick="openRestore('${b.filename}')">
+          <i class="fa-solid fa-rotate-left"></i>
+        </button>
+        <button class="btn-icon red" title="削除" onclick="deleteBackup('${b.filename}')">
+          <i class="fa-solid fa-trash"></i>
+        </button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ---- Run ----
+async function runBackup(kind='manual') {
+  const prog = document.getElementById('runProgress');
+  const msg  = document.getElementById('runProgressMsg');
+  prog.classList.add('show');
+  msg.textContent = 'バックアップ作成中...';
+
+  try {
+    const res  = await fetch('/api/backup/run', {
+      method:'POST', headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({kind})
+    });
+    const data = await res.json();
+    if (data.success) {
+      msg.textContent = `✅ 完了: ${data.filename} (${fmtSize(data.size)}) ${data.duration_s}秒`;
+      showToast(`バックアップを作成しました: ${data.filename}`, 'success');
+      await loadList();
+      await loadLog();
+    } else {
+      msg.textContent = `❌ 失敗: ${data.error}`;
+      showToast('バックアップに失敗しました', 'error');
+    }
+  } catch(e) {
+    msg.textContent = `❌ エラー: ${e.message}`;
+    showToast('通信エラー', 'error');
+  } finally {
+    setTimeout(() => prog.classList.remove('show'), 5000);
+  }
+}
+
+// ---- Verify ----
+async function verifyBackup(filename) {
+  showToast('整合性チェック中...', 'info');
+  const res  = await fetch(`/api/backup/verify/${filename}`);
+  const data = await res.json();
+  if (data.valid)
+    showToast(`✅ 整合性OK: ${filename.substring(0,40)}…`, 'success');
+  else
+    showToast(`❌ 整合性NG: ${data.error || 'チェック失敗'}`, 'error');
+}
+
+// ---- Delete ----
+async function deleteBackup(filename) {
+  if (!confirm(`${filename} を削除しますか？`)) return;
+  const res = await fetch(`/api/backup/delete/${filename}`, {method:'DELETE'});
+  if (res.ok) {
+    showToast('削除しました', 'info');
+    await loadList();
+  } else {
+    showToast('削除に失敗しました', 'error');
+  }
+}
+
+// ---- Restore ----
+function openRestore(filename) {
+  document.getElementById('restoreFilename').value = filename;
+  document.getElementById('restoreFileLabel').textContent = `対象: ${filename}`;
+  ['rt_db','rt_env','rt_cert','rt_key'].forEach(id => {
+    document.getElementById(id).checked = (id === 'rt_db');
+  });
+  document.getElementById('restoreModal').classList.add('open');
+}
+
+async function doRestore() {
+  const filename = document.getElementById('restoreFilename').value;
+  const targets  = ['rt_db','rt_env','rt_cert','rt_key']
+    .filter(id => document.getElementById(id).checked)
+    .map(id => document.getElementById(id).value);
+  if (!targets.length) { showToast('復元対象を選択してください', 'error'); return; }
+  closeModal('restoreModal');
+
+  showToast('復元中...', 'info');
+  const res  = await fetch('/api/backup/restore', {
+    method:'POST', headers:{'Content-Type':'application/json'},
+    body: JSON.stringify({filename, targets})
+  });
+  const data = await res.json();
+  if (data.success) {
+    const msg = `復元完了: ${data.restored.join(', ')}` +
+                (data.pre_backup ? ` (事前バックアップ: ${data.pre_backup})` : '');
+    showToast(msg, 'success');
+    await loadList();
+  } else {
+    showToast(`復元失敗: ${data.error}`, 'error');
+  }
+}
+
+// ---- Settings ----
+async function loadSettings() {
+  const res  = await fetch('/api/backup/settings');
+  const d    = await res.json();
+  document.getElementById('sEnabled').checked = (d.backup_enabled === 'true');
+  document.getElementById('sHour').value       = d.backup_hour || 2;
+  document.getElementById('sNotify').checked   = (d.backup_notify_success === 'true');
+  document.getElementById('sKeepDaily').value  = d.backup_keep_daily  || 7;
+  document.getElementById('sKeepWeekly').value = d.backup_keep_weekly || 4;
+  document.getElementById('sKeepMonthly').value= d.backup_keep_monthly|| 3;
+  document.getElementById('sumDaily').textContent   = d.backup_keep_daily   || 7;
+  document.getElementById('sumWeekly').textContent  = d.backup_keep_weekly  || 4;
+  document.getElementById('sumMonthly').textContent = d.backup_keep_monthly || 3;
+}
+
+async function saveSettings() {
+  const body = {
+    backup_enabled:        document.getElementById('sEnabled').checked  ? 'true':'false',
+    backup_hour:           document.getElementById('sHour').value,
+    backup_notify_success: document.getElementById('sNotify').checked ? 'true':'false',
+    backup_keep_daily:     document.getElementById('sKeepDaily').value,
+    backup_keep_weekly:    document.getElementById('sKeepWeekly').value,
+    backup_keep_monthly:   document.getElementById('sKeepMonthly').value,
+  };
+  const res = await fetch('/api/backup/settings', {
+    method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body)
+  });
+  if (res.ok) {
+    showToast('設定を保存しました', 'success');
+    document.getElementById('sumDaily').textContent   = body.backup_keep_daily;
+    document.getElementById('sumWeekly').textContent  = body.backup_keep_weekly;
+    document.getElementById('sumMonthly').textContent = body.backup_keep_monthly;
+  } else {
+    showToast('保存に失敗しました', 'error');
+  }
+}
+
+// ---- Log ----
+async function loadLog() {
+  const res  = await fetch('/api/backup/log');
+  const data = await res.json();
+  const tbody = document.getElementById('logBody');
+  if (!data.length) {
+    tbody.innerHTML = '<tr><td colspan="6" style="text-align:center;color:#94a3b8">実行履歴がありません</td></tr>';
+    return;
+  }
+  tbody.innerHTML = data.map(r => {
+    const k  = KIND_COLORS[r.kind] || {cls:'kind-badge-manual',label:r.kind};
+    const sc = r.success ? 'badge-ok' : 'badge-fail';
+    const sl = r.success ? '成功'     : '失敗';
+    const fn = r.filename ? r.filename.substring(0,45)+'…' : '—';
+    const err= !r.success && r.error_msg ? `<br><span style="color:#dc2626;font-size:10px">${r.error_msg}</span>` : '';
+    return `<tr>
+      <td class="text-muted">${r.created_at}</td>
+      <td><span class="badge ${k.cls}">${k.label}</span></td>
+      <td style="font-size:11px;font-family:monospace">${fn}${err}</td>
+      <td>${r.size ? fmtSize(r.size) : '—'}</td>
+      <td>${r.duration_s != null ? r.duration_s+'s' : '—'}</td>
+      <td><span class="badge ${sc}">${sl}</span></td>
+    </tr>`;
+  }).join('');
+}
+</script>
+{% endblock %}

@@ -1,0 +1,127 @@
+# ================================================================
+#  docker-compose.yml -- BuildeeMgr (Flask + Nginx + Certbot)
+#
+#  起動:        docker compose up -d
+#  SSL取得後:   docker compose --profile ssl up -d
+#  再構築:      docker compose up -d --build
+# ================================================================
+version: "3.9"
+
+services:
+
+  # ---- Flask / Gunicorn ----
+  flask:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: buildee_app:latest
+    container_name: buildee_flask
+    restart: unless-stopped
+    env_file: .env
+    environment:
+      HTTPS_ENABLED: "false"
+      HTTP_REDIRECT:  "false"
+      SESSION_COOKIE_SECURE: "true"
+      DB_PATH: "/app/data/buildee.db"
+      BACKUP_DIR: "/app/backups"
+    volumes:
+      - buildee_data:/app/data
+      - buildee_backups:/app/backups
+      - buildee_certs:/app/certs
+    networks:
+      - buildee_net
+    healthcheck:
+      test: ["CMD", "python", "-c",
+             "import urllib.request; urllib.request.urlopen('http://localhost:5000/offline', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 20s
+
+  # ---- Nginx リバースプロキシ ----
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: buildee_nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./static:/app/static:ro
+      - buildee_certs:/etc/nginx/ssl:ro
+      - certbot_www:/var/www/certbot:ro
+      - certbot_conf:/etc/letsencrypt:ro
+      - nginx_logs:/var/log/nginx
+    depends_on:
+      flask:
+        condition: service_healthy
+    networks:
+      - buildee_net
+
+  # ---- Certbot (Let's Encrypt 自動更新) ----
+  # 使い方:
+  #   初回取得: docker compose run --rm certbot certonly \
+  #               --webroot -w /var/www/certbot \
+  #               --email you@example.com --agree-tos --no-eff-email \
+  #               -d yourdomain.com
+  #   自動更新: docker compose --profile ssl up -d certbot
+  certbot:
+    image: certbot/certbot:latest
+    container_name: buildee_certbot
+    profiles: ["ssl"]           # 明示的に --profile ssl で起動
+    restart: unless-stopped
+    volumes:
+      - certbot_www:/var/www/certbot
+      - certbot_conf:/etc/letsencrypt
+    # 12時間ごとに更新を試みる（更新は期限30日前から実行される）
+    # 更新成功後に Nginx へ reload シグナルを送る
+    entrypoint: >
+      /bin/sh -c "
+        trap exit TERM;
+        echo '[Certbot] Auto-renewal daemon started';
+        while :; do
+          certbot renew
+            --webroot -w /var/www/certbot
+            --quiet
+            --deploy-hook 'echo RELOAD_NGINX'
+            2>&1 | tee -a /var/log/letsencrypt/renew.log;
+          echo '[Certbot] Next check in 12h';
+          sleep 12h & wait $${!};
+        done"
+    networks:
+      - buildee_net
+
+  # ---- Nginx Reload Sidecar (証明書更新後に reload) ----
+  # certbot が更新した後、Nginx をリロードするための軽量サービス
+  nginx-reload:
+    image: alpine:3.19
+    container_name: buildee_nginx_reload
+    profiles: ["ssl"]
+    restart: "no"
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    entrypoint: >
+      /bin/sh -c "
+        apk add --no-cache docker-cli curl;
+        echo '[NginxReload] Watching for cert renewal...';
+        while :; do
+          sleep 3600;
+          docker exec buildee_nginx nginx -s reload 2>/dev/null \
+            && echo '[NginxReload] Nginx reloaded' || true;
+        done"
+    networks:
+      - buildee_net
+
+volumes:
+  buildee_data:
+  buildee_backups:
+  buildee_certs:
+  certbot_www:
+  certbot_conf:
+  nginx_logs:
+
+networks:
+  buildee_net:
+    driver: bridge

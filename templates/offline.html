@@ -1,0 +1,122 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>オフライン | BuildeeMgr</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body {
+      font-family: 'Hiragino Sans', 'Segoe UI', sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      color: #e2e8f0; min-height: 100vh;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .card {
+      background: rgba(255,255,255,0.06);
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 24px; padding: 48px 36px;
+      text-align: center; max-width: 420px; width: 90%;
+      backdrop-filter: blur(12px);
+    }
+    .icon { font-size: 72px; color: #f97316; margin-bottom: 24px; animation: pulse 2s infinite; }
+    @keyframes pulse { 0%,100%{opacity:1} 50%{opacity:0.6} }
+    h1 { font-size: 24px; font-weight: 700; margin-bottom: 12px; }
+    p  { color: #94a3b8; font-size: 15px; line-height: 1.6; margin-bottom: 28px; }
+    .cached-pages { display: grid; gap: 10px; margin-bottom: 28px; }
+    .cached-link {
+      display: flex; align-items: center; gap: 12px;
+      background: rgba(255,255,255,0.08); border-radius: 12px;
+      padding: 14px 16px; color: #e2e8f0; text-decoration: none;
+      transition: background 0.2s; font-size: 14px; font-weight: 500;
+    }
+    .cached-link:hover { background: rgba(255,255,255,0.14); }
+    .cached-link i { color: #f97316; width: 20px; text-align: center; }
+    .btn-retry {
+      background: #f97316; color: #fff; border: none; border-radius: 12px;
+      padding: 14px 32px; font-size: 15px; font-weight: 700; cursor: pointer;
+      width: 100%; transition: opacity 0.2s;
+    }
+    .btn-retry:hover { opacity: 0.88; }
+    .status-bar {
+      margin-top: 20px; padding: 10px 16px; border-radius: 8px;
+      font-size: 12px; color: #64748b; background: rgba(0,0,0,0.2);
+    }
+    .online-dot  { color: #22c55e; }
+    .offline-dot { color: #ef4444; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="icon"><i class="fa-solid fa-wifi-slash" id="mainIcon"></i></div>
+    <h1 id="mainTitle">オフラインです</h1>
+    <p id="mainDesc">
+      インターネット接続が見つかりません。<br>
+      キャッシュされたページは引き続き利用できます。
+    </p>
+
+    <div class="cached-pages">
+      <a href="/"            class="cached-link"><i class="fa-solid fa-gauge-high"></i> ダッシュボード</a>
+      <a href="/coordination" class="cached-link"><i class="fa-solid fa-calendar-days"></i> 調整会議</a>
+      <a href="/ky"           class="cached-link"><i class="fa-solid fa-triangle-exclamation"></i> 電子KY</a>
+      <a href="/safety"       class="cached-link"><i class="fa-solid fa-shield-halved"></i> 労務安全</a>
+      <a href="/attendance"   class="cached-link"><i class="fa-solid fa-door-open"></i> 入退場管理</a>
+    </div>
+
+    <button class="btn-retry" onclick="retryConnection()">
+      <i class="fa-solid fa-rotate-right"></i>　再接続を試みる
+    </button>
+
+    <div class="status-bar">
+      <span id="statusDot" class="offline-dot">●</span>
+      <span id="statusText">オフライン</span>
+      &nbsp;|&nbsp;
+      <span id="lastOnline">最終オンライン: 不明</span>
+    </div>
+  </div>
+
+  <script>
+    // ネットワーク状態監視
+    function updateStatus() {
+      const dot  = document.getElementById('statusDot');
+      const text = document.getElementById('statusText');
+      if (navigator.onLine) {
+        dot.className  = 'online-dot';
+        text.textContent = 'オンライン';
+      } else {
+        dot.className  = 'offline-dot';
+        text.textContent = 'オフライン';
+      }
+    }
+    window.addEventListener('online',  updateStatus);
+    window.addEventListener('offline', updateStatus);
+    updateStatus();
+
+    // 最終オンライン時刻
+    if (localStorage.getItem('lastOnline')) {
+      const t = new Date(parseInt(localStorage.getItem('lastOnline')));
+      document.getElementById('lastOnline').textContent =
+        '最終オンライン: ' + t.toLocaleString('ja-JP');
+    }
+
+    function retryConnection() {
+      const btn = document.querySelector('.btn-retry');
+      btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i>　確認中...';
+      btn.disabled = true;
+      fetch('/', { method: 'HEAD', cache: 'no-store' })
+        .then(() => { location.href = '/'; })
+        .catch(() => {
+          btn.innerHTML = '<i class="fa-solid fa-rotate-right"></i>　再接続を試みる';
+          btn.disabled = false;
+          document.getElementById('mainIcon').className = 'fa-solid fa-wifi-slash';
+        });
+    }
+
+    // オンラインになったら自動リダイレクト
+    window.addEventListener('online', () => {
+      setTimeout(() => { location.href = '/'; }, 800);
+    });
+  </script>
+</body>
+</html>
