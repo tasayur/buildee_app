@@ -484,11 +484,19 @@ def api_add_equip():
     r['id']=str(uuid.uuid4()); db.add_equipment(r)
     return jsonify({'status':'ok','id':r['id']}),201
 
+@app.route('/api/equipment/<eid>', methods=['PUT'])
+@write_required
+def api_update_equip(eid):
+    data = request.get_json() or {}
+    db.update_equipment(eid, data)
+    return jsonify({'status':'ok'})
+
 @app.route('/api/equipment/<eid>', methods=['DELETE'])
 @write_required
 def api_del_equip(eid):
     db.delete_equipment(eid); return jsonify({'status':'ok'})
 
+# --- KY ---
 # --- KY ---
 @app.route('/api/ky',              methods=['GET'])
 @login_required

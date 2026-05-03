@@ -249,6 +249,17 @@ def delete_equipment(eid):
     with get_conn() as conn:
         conn.execute("DELETE FROM equipment_reservations WHERE id=?", (eid,))
 
+def update_equipment(eid, fields):
+    allowed = {'date','equipment','company','time_start','time_end','purpose'}
+    sets = [f"{k}=?" for k in fields if k in allowed]
+    vals = [fields[k] for k in fields if k in allowed]
+    if not sets:
+        return
+    vals.append(eid)
+    with get_conn() as conn:
+        conn.execute(
+            f"UPDATE equipment_reservations SET {','.join(sets)} WHERE id=?", vals)
+
 # ------------------------------------------------------------------
 # KY Records
 # ------------------------------------------------------------------
