@@ -750,6 +750,45 @@ def api_backup_settings_post():
         if k in allowed:
             notifier.set_setting(k, str(v))
     return jsonify({'status': 'ok'})
+    return jsonify({'status': 'ok'})
+
+# ------------------------------------------------------------------
+# Floorplan Markers API
+# ------------------------------------------------------------------
+@app.route('/api/markers', methods=['GET'])
+@login_required
+def api_get_markers():
+    floor = request.args.get('floor')
+    return jsonify(db.get_markers(floor))
+
+@app.route('/api/markers', methods=['POST'])
+@login_required
+def api_add_marker():
+    data = request.get_json()
+    if not data or not data.get('id') or not data.get('floor'):
+        return jsonify({'error': 'invalid data'}), 400
+    data['created_by'] = current_user.username
+    db.add_marker(data)
+    return jsonify({'status': 'ok', 'id': data['id']})
+
+@app.route('/api/markers/<mid>', methods=['PUT'])
+@login_required
+def api_update_marker(mid):
+    data = request.get_json() or {}
+    db.update_marker(mid, data)
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/markers/<mid>', methods=['DELETE'])
+@login_required
+def api_delete_marker(mid):
+    db.delete_marker(mid)
+    return jsonify({'status': 'ok'})
+
+@app.route('/api/markers/floor/<floor>', methods=['DELETE'])
+@login_required
+def api_clear_floor(floor):
+    db.delete_markers_by_floor(floor)
+    return jsonify({'status': 'ok'})
 
 @app.errorhandler(401)
 def e401(e):

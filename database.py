@@ -110,7 +110,24 @@ CREATE TABLE IF NOT EXISTS attendance (
     FOREIGN KEY (worker_id) REFERENCES workers(id) ON DELETE CASCADE
 );
 CREATE INDEX IF NOT EXISTS idx_att_date   ON attendance(date);
+CREATE INDEX IF NOT EXISTS idx_att_date   ON attendance(date);
 CREATE INDEX IF NOT EXISTS idx_att_worker ON attendance(worker_id);
+
+CREATE TABLE IF NOT EXISTS floorplan_markers (
+    id         TEXT PRIMARY KEY,
+    floor      TEXT NOT NULL,
+    type       TEXT NOT NULL,
+    x          REAL NOT NULL,
+    y          REAL NOT NULL,
+    w          REAL,
+    h          REAL,
+    color      TEXT DEFAULT '#e53935',
+    title      TEXT,
+    body       TEXT,
+    created_by TEXT,
+    created_at TEXT DEFAULT (datetime('now','localtime')),
+    updated_at TEXT DEFAULT (datetime('now','localtime'))
+);
 """
 
 def init_db():
@@ -399,3 +416,56 @@ def get_dashboard_stats(today_str):
         'expiring_details': expiring, 'recent_schedules': recent_schedules,
         'companies_count': companies_count,
     }
+
+
+# ------------------------------------------------------------------
+# Floorplan Markers
+# ------------------------------------------------------------------
+def get_markers(floor=None):
+    with get_conn() as conn:
+        if floor:
+            rows = conn.execute(
+                "SELECT * FROM floorplan_markers WHERE floor=? ORDER BY created_at",
+                (floor,)).fetchall()
+        else:
+            rows = conn.execute(
+                "SELECT * FROM floorplan_markers ORDER BY floor, created_at").fetchall()
+    return rows_to_list(rows)
+
+def add_marker(m):
+    with get_conn() as conn:
+        conn.execute("""
+            INSERT INTO floorplan_markers
+              (id, floor, type, x, y, w, h, color, title, body, created_by)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?)
+        """, (m['id'], m['floor'], m['type'],
+              m['x'], m['y'], m.get('w'), m.get('h'),
+              m.get('color','#e53935'), m.get('title',''), m.get('body',''),
+              m.get('created_by','')))
+    return True
+
+def update_marker(mid, data):
+    fields = []
+    vals   = []
+    for k in ('x','y','w','h','color','title','body'):
+        if k in data:
+            fields.append(f"{k}=?")
+            vals.append(data[k])
+    if not fields:
+        return False
+    fields.append("updated_at=datetime('now','localtime')")
+    vals.append(mid)
+    with get_conn() as conn:
+        conn.execute(
+            f"UPDATE floorplan_markers SET {','.join(fields)} WHERE id=?", vals)
+    return True
+
+def delete_marker(mid):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM floorplan_markers WHERE id=?", (mid,))
+    return True
+
+def delete_markers_by_floor(floor):
+    with get_conn() as conn:
+        conn.execute("DELETE FROM floorplan_markers WHERE floor=?", (floor,))
+    return True

@@ -1,5 +1,7 @@
 @echo off
 chcp 65001 > nul
+cd /d %~dp0
+
 echo ===================================
 echo   BuildeeMgr 施工管理システム
 echo ===================================
@@ -24,7 +26,7 @@ echo  HTTP : http://localhost:5000  (HTTPS へリダイレクト)
 echo  初期ログイン: admin / admin1234
 echo.
 echo  ブラウザの「接続の安全性」警告が出た場合は「詳細設定」から続行してください
-echo  (自己署名証明書のため — 本番では正式な証明書を使用してください)
+echo  (自己署名証明書のため)
 echo.
 echo  終了するには Ctrl+C を押してください
 echo.
