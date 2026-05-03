@@ -452,6 +452,11 @@ def api_qr_bulk():
 @login_required
 def api_get_schedules(): return jsonify(db.get_schedules(request.args.get('date')))
 
+@app.route('/api/schedules/floor/<floor>', methods=['GET'])
+@login_required
+def api_get_schedules_floor(floor):
+    return jsonify(db.get_schedules_by_floor(floor))
+
 @app.route('/api/schedules',       methods=['POST'])
 @write_required
 def api_add_schedule():
@@ -468,6 +473,8 @@ def api_upd_schedule(sid):
 @write_required
 def api_del_schedule(sid):
     db.delete_schedule(sid); return jsonify({'status':'ok'})
+
+# --- Equipment ---
 
 # --- Equipment ---
 @app.route('/api/equipment',       methods=['GET'])

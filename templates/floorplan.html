@@ -16,10 +16,10 @@
 <!-- ツールバー -->
 <div class="fp-toolbar">
   <div class="tool-group">
-    <button class="tool-btn active" id="tool-select" onclick="setTool('select',this)" title="選択・移動">🖱 選択</button>
-    <button class="tool-btn" id="tool-pin"    onclick="setTool('pin',this)"    title="ピンを立てる">📍 ピン</button>
-    <button class="tool-btn" id="tool-memo"   onclick="setTool('memo',this)"   title="メモを追加">📝 メモ</button>
-    <button class="tool-btn" id="tool-area"   onclick="setTool('area',this)"   title="エリアをマーク">🟥 エリア</button>
+    <button class="tool-btn active" id="tool-select" onclick="setTool('select',this)">🖱 選択</button>
+    <button class="tool-btn" id="tool-pin"   onclick="setTool('pin',this)">📍 ピン</button>
+    <button class="tool-btn" id="tool-memo"  onclick="setTool('memo',this)">📝 メモ</button>
+    <button class="tool-btn" id="tool-area"  onclick="setTool('area',this)">🟥 エリア</button>
   </div>
   <div class="tool-group">
     <select id="marker-color" title="色選択">
@@ -36,9 +36,16 @@
     <button class="ctrl-btn" onclick="zoomActive(0.8)">🔍－</button>
     <button class="ctrl-btn" onclick="resetActive()">↺ リセット</button>
   </div>
+  <!-- 作業予定レイヤー切替 -->
+  <div class="tool-group">
+    <label class="layer-toggle">
+      <input type="checkbox" id="toggleSchedules" checked onchange="toggleScheduleLayer()">
+      <span>📋 作業予定を表示</span>
+    </label>
+  </div>
   <div class="tool-group ml-auto">
-    <button class="ctrl-btn" onclick="reloadMarkers()" title="他のユーザーの変更を反映">🔄 更新</button>
-    <button class="ctrl-btn danger" onclick="clearFloor()">🗑 全消去</button>
+    <button class="ctrl-btn" onclick="reloadAll()">🔄 更新</button>
+    <button class="ctrl-btn danger" onclick="clearFloor()">🗑 ピン全消去</button>
     <button class="ctrl-btn success" onclick="downloadWithMarkers()">📸 画像保存</button>
   </div>
 </div>
@@ -50,6 +57,8 @@
       <img src="{{ url_for('static', filename='floorplans/floorplan_1f.png') }}"
            alt="1F 配置図" class="floorplan-img" id="img-1f" draggable="false">
       <div class="marker-layer" id="markers-1f"></div>
+      <!-- 作業予定レイヤー -->
+      <div class="schedule-layer" id="schedules-1f"></div>
     </div>
   </div>
 </div>
@@ -61,16 +70,26 @@
       <img src="{{ url_for('static', filename='floorplans/floorplan_2f.png') }}"
            alt="2F 配置図" class="floorplan-img" id="img-2f" draggable="false">
       <div class="marker-layer" id="markers-2f"></div>
+      <div class="schedule-layer" id="schedules-2f"></div>
     </div>
   </div>
+</div>
+
+<!-- 凡例パネル -->
+<div id="legendPanel" class="legend-panel" style="display:none;">
+  <div class="legend-header">
+    📋 本日の作業予定
+    <button onclick="document.getElementById('legendPanel').style.display='none'">✕</button>
+  </div>
+  <div id="legendList" class="legend-list"></div>
 </div>
 
 <!-- メモ入力ダイアログ -->
 <div id="memo-dialog" class="dialog-overlay" style="display:none;">
   <div class="dialog-box">
     <h3 id="dialog-title">📝 メモを入力</h3>
-    <input type="text" id="memo-title-input" placeholder="タイトル（例: 注意箇所）" maxlength="30">
-    <textarea id="memo-body-input" placeholder="メモ内容を入力してください" rows="4" maxlength="200"></textarea>
+    <input type="text" id="memo-title-input" placeholder="タイトル" maxlength="30">
+    <textarea id="memo-body-input" placeholder="メモ内容" rows="4" maxlength="200"></textarea>
     <div class="dialog-btns">
       <button onclick="cancelMemo()">キャンセル</button>
       <button class="btn-primary" onclick="confirmMemo()">追加</button>
@@ -87,475 +106,423 @@
   <div id="popup-body-text" class="popup-body"></div>
   <div id="popup-meta" class="popup-meta"></div>
   <div class="popup-footer">
-    <button class="btn-danger-sm" onclick="deleteCurrentMarker()">🗑 削除</button>
+    <button class="btn-danger-sm" id="popup-del-btn" onclick="deleteCurrentMarker()">🗑 削除</button>
   </div>
 </div>
 
 <style>
-/* ===== ヘッダー ===== */
-.fp-header { display:flex; align-items:center; gap:1rem; margin-bottom:0.75rem; }
+.fp-header { display:flex; align-items:center; gap:1rem; margin-bottom:.75rem; }
 .fp-header h2 { margin:0; }
-.sync-badge { font-size:0.78rem; padding:0.2rem 0.6rem; border-radius:12px; font-weight:bold; }
+.sync-badge { font-size:.78rem; padding:.2rem .6rem; border-radius:12px; font-weight:bold; }
 .sync-ok   { background:#E8F5E9; color:#2E7D32; }
 .sync-busy { background:#FFF3E0; color:#E65100; }
 .sync-err  { background:#FFEBEE; color:#B71C1C; }
 
-/* ===== ツールバー ===== */
-.fp-toolbar { display:flex; flex-wrap:wrap; gap:0.5rem; align-items:center;
+.fp-toolbar { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center;
   background:#f5f5f5; border:1px solid #ddd; border-radius:8px;
-  padding:0.5rem 0.75rem; margin-bottom:0.75rem; }
-.tool-group { display:flex; gap:0.4rem; align-items:center; }
+  padding:.5rem .75rem; margin-bottom:.75rem; }
+.tool-group { display:flex; gap:.4rem; align-items:center; }
 .ml-auto { margin-left:auto; }
-.tool-btn { padding:0.35rem 0.8rem; border:2px solid #bbb; border-radius:6px;
-  background:#fff; cursor:pointer; font-size:0.85rem; font-weight:bold; transition:all .15s; }
-.tool-btn:hover { border-color:#555; background:#f0f0f0; }
+.tool-btn { padding:.35rem .8rem; border:2px solid #bbb; border-radius:6px;
+  background:#fff; cursor:pointer; font-size:.85rem; font-weight:bold; }
 .tool-btn.active { border-color:#1E88E5; background:#E3F2FD; color:#1E88E5; }
-.ctrl-btn { padding:0.35rem 0.75rem; border:1px solid #bbb; border-radius:6px;
-  background:#fff; cursor:pointer; font-size:0.85rem; }
-.ctrl-btn:hover { background:#eee; }
-.ctrl-btn.danger { border-color:#e53935; color:#e53935; }
-.ctrl-btn.danger:hover { background:#FFEBEE; }
+.ctrl-btn { padding:.35rem .75rem; border:1px solid #bbb; border-radius:6px;
+  background:#fff; cursor:pointer; font-size:.85rem; }
+.ctrl-btn.danger  { border-color:#e53935; color:#e53935; }
 .ctrl-btn.success { border-color:#43A047; color:#43A047; }
-.ctrl-btn.success:hover { background:#E8F5E9; }
-#marker-color { padding:0.3rem 0.5rem; border:1px solid #bbb; border-radius:6px; font-size:0.85rem; }
+#marker-color { padding:.3rem .5rem; border:1px solid #bbb; border-radius:6px; font-size:.85rem; }
+.layer-toggle { display:flex; align-items:center; gap:6px; cursor:pointer; font-size:.85rem; font-weight:bold; }
 
-/* ===== タブ ===== */
-.floorplan-tabs { display:flex; gap:0.5rem; margin-bottom:0.75rem; }
-.tab-btn { padding:0.5rem 2rem; font-size:1rem; font-weight:bold;
+.floorplan-tabs { display:flex; gap:.5rem; margin-bottom:.75rem; }
+.tab-btn { padding:.5rem 2rem; font-size:1rem; font-weight:bold;
   border:2px solid #333; background:#fff; cursor:pointer; border-radius:6px; }
 .tab-btn.active { background:#333; color:#fff; }
 
-/* ===== キャンバス ===== */
 .fp-wrap { overflow:auto; border:1px solid #ccc; border-radius:8px;
   background:#e8e8e8; height:65vh; position:relative; cursor:crosshair; }
-.fp-wrap.select-mode { cursor:default; }
-.fp-canvas { position:relative; display:inline-block; transform-origin:top left;
-  transition:transform .15s; }
+.fp-canvas { position:relative; display:inline-block; transform-origin:top left; transition:transform .15s; }
 .floorplan-img { display:block; max-width:100%; user-select:none; pointer-events:none; }
-.marker-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+.marker-layer   { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+.schedule-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
 
-/* ===== マーカー共通 ===== */
-.marker { position:absolute; pointer-events:all; cursor:pointer; transition:filter .1s; }
+/* マーカー */
+.marker { position:absolute; pointer-events:all; cursor:pointer; }
 .marker:hover { filter:brightness(1.15) drop-shadow(0 2px 4px rgba(0,0,0,.4)); z-index:100; }
-.marker.dragging { cursor:grabbing; opacity:0.75; z-index:200; transition:none; }
-
-/* ピン */
+.marker.dragging { cursor:grabbing; opacity:.75; z-index:200; transition:none; }
 .pin-marker { width:28px; height:28px; border-radius:50% 50% 50% 0;
   transform:rotate(-45deg) translate(-50%,-50%);
   border:3px solid rgba(0,0,0,.25); box-shadow:2px 2px 4px rgba(0,0,0,.3); }
-.pin-marker::after { content:''; width:10px; height:10px;
-  background:rgba(255,255,255,.6); border-radius:50%;
-  position:absolute; top:4px; left:4px; }
-
-/* メモ */
+.pin-marker::after { content:''; width:10px; height:10px; background:rgba(255,255,255,.6);
+  border-radius:50%; position:absolute; top:4px; left:4px; }
 .memo-marker { background:#FFF9C4; border:2px solid; border-radius:4px;
-  padding:3px 7px; font-size:0.75rem; font-weight:bold;
-  max-width:120px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+  padding:3px 7px; font-size:.75rem; font-weight:bold; max-width:120px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
   box-shadow:2px 2px 6px rgba(0,0,0,.2); transform:translate(-50%,-100%); }
-
-/* エリア */
-.area-marker { border:3px dashed; border-radius:4px;
-  background:rgba(255,255,255,.1); display:flex; align-items:flex-start;
-  padding:4px 6px; font-size:0.72rem; font-weight:bold;
+.area-marker { border:3px dashed; border-radius:4px; background:rgba(255,255,255,.1);
+  display:flex; align-items:flex-start; padding:4px 6px; font-size:.72rem; font-weight:bold;
   box-sizing:border-box; min-width:60px; min-height:40px; }
-
-/* エリア描画中 */
 .area-drawing { position:absolute; border:3px dashed #e53935;
   background:rgba(229,57,53,.08); pointer-events:none; z-index:200; }
 
-/* ===== ポップアップ ===== */
-.marker-popup { position:fixed; z-index:500; background:#fff;
-  border:1px solid #ccc; border-radius:8px;
-  box-shadow:0 4px 20px rgba(0,0,0,.2); width:240px; font-size:.9rem; }
+/* 作業予定ピン */
+.schedule-pin { position:absolute; pointer-events:all; cursor:pointer; z-index:50; }
+.sch-pin-dot { width:32px; height:32px; border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg) translate(-50%,-50%);
+  border:3px solid rgba(255,255,255,.8); box-shadow:2px 2px 6px rgba(0,0,0,.4);
+  transition:filter .1s; }
+.schedule-pin:hover .sch-pin-dot { filter:brightness(1.2) drop-shadow(0 3px 6px rgba(0,0,0,.5)); }
+.sch-pin-label { position:absolute; left:16px; top:-28px; background:rgba(0,0,0,.75);
+  color:#fff; font-size:.7rem; padding:2px 6px; border-radius:4px;
+  white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .15s; }
+.schedule-pin:hover .sch-pin-label { opacity:1; }
+
+/* ポップアップ */
+.marker-popup { position:fixed; z-index:500; background:#fff; border:1px solid #ccc;
+  border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,.2); width:260px; font-size:.9rem; }
 .popup-header { display:flex; justify-content:space-between; align-items:center;
-  padding:.5rem .75rem; background:#333; color:#fff;
-  border-radius:8px 8px 0 0; font-weight:bold; }
+  padding:.5rem .75rem; background:#333; color:#fff; border-radius:8px 8px 0 0; font-weight:bold; }
 .popup-header button { background:none; border:none; color:#fff; cursor:pointer; font-size:1rem; }
 .popup-body { padding:.75rem; white-space:pre-wrap; color:#333; min-height:30px; }
 .popup-meta { padding:0 .75rem .5rem; font-size:.72rem; color:#999; }
 .popup-footer { padding:.5rem .75rem; border-top:1px solid #eee; text-align:right; }
 .btn-danger-sm { padding:.3rem .75rem; background:#e53935; color:#fff;
   border:none; border-radius:4px; cursor:pointer; font-size:.8rem; }
-.btn-danger-sm:hover { background:#c62828; }
 
-/* ===== ダイアログ ===== */
+/* ダイアログ */
 .dialog-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5);
   z-index:600; display:flex; align-items:center; justify-content:center; }
-.dialog-box { background:#fff; border-radius:10px; padding:1.5rem;
-  width:340px; box-shadow:0 8px 32px rgba(0,0,0,.25); }
+.dialog-box { background:#fff; border-radius:10px; padding:1.5rem; width:340px;
+  box-shadow:0 8px 32px rgba(0,0,0,.25); }
 .dialog-box h3 { margin:0 0 1rem; }
 .dialog-box input, .dialog-box textarea { width:100%; border:1px solid #ccc;
   border-radius:6px; padding:.5rem; font-size:.9rem; margin-bottom:.75rem;
   box-sizing:border-box; font-family:inherit; }
 .dialog-btns { display:flex; gap:.5rem; justify-content:flex-end; }
-.dialog-btns button { padding:.4rem 1.2rem; border-radius:6px;
-  border:1px solid #bbb; cursor:pointer; font-size:.9rem; background:#fff; }
+.dialog-btns button { padding:.4rem 1.2rem; border-radius:6px; border:1px solid #bbb;
+  cursor:pointer; font-size:.9rem; background:#fff; }
 .btn-primary { background:#1E88E5!important; color:#fff!important; border-color:#1E88E5!important; }
-.btn-primary:hover { background:#1565C0!important; }
+
+/* 凡例 */
+.legend-panel { position:fixed; bottom:20px; right:20px; z-index:300;
+  background:#fff; border:1px solid #ddd; border-radius:10px;
+  box-shadow:0 4px 20px rgba(0,0,0,.15); width:260px; max-height:400px;
+  overflow-y:auto; font-size:.85rem; }
+.legend-header { display:flex; justify-content:space-between; align-items:center;
+  padding:.6rem 1rem; background:#333; color:#fff; border-radius:10px 10px 0 0; font-weight:bold; }
+.legend-header button { background:none; border:none; color:#fff; cursor:pointer; }
+.legend-list { padding:.5rem; }
+.legend-item { display:flex; align-items:center; gap:8px;
+  padding:5px 8px; border-radius:6px; margin-bottom:3px; cursor:pointer; }
+.legend-item:hover { background:#f5f5f5; }
+.legend-dot { width:14px; height:14px; border-radius:50%; flex-shrink:0; }
 </style>
 
 <script>
-// ================================================================
-//  配置図 マーカー管理
-//  - DB保存（複数ユーザー共有）
-//  - ドラッグで移動
-//  - エリア描画
-//  - 30秒ごと自動同期
-// ================================================================
-
 let currentFloor = '1f';
 let currentTool  = 'select';
-let scales       = { '1f':1.0, '2f':1.0 };
+let scales       = {'1f':1.0,'2f':1.0};
 let pendingPos   = null;
 let currentMarkerId = null;
+let showSchedules   = true;
 let autoRefreshTimer = null;
 
-// ===== ツール切替 =====
+// ===== ツール =====
 function setTool(tool, btn) {
   currentTool = tool;
   document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  const wrap = document.getElementById('wrap-' + currentFloor);
-  wrap.style.cursor = (tool === 'select') ? 'default' : 'crosshair';
+  document.getElementById('wrap-'+currentFloor).style.cursor =
+    tool==='select'?'default':'crosshair';
 }
 
-// ===== フロア切替 =====
+// ===== フロア =====
 function showFloor(floor, btn) {
   currentFloor = floor;
-  document.querySelectorAll('.floor-panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.floor-panel').forEach(p => p.style.display='none');
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('floor-' + floor).style.display = 'block';
+  document.getElementById('floor-'+floor).style.display='block';
   btn.classList.add('active');
   closePopup();
-  reloadMarkers();
+  reloadAll();
 }
 
 // ===== ズーム =====
 function zoomActive(f) {
-  scales[currentFloor] = Math.min(Math.max((scales[currentFloor]||1)*f, 0.2), 6);
-  document.getElementById('canvas-' + currentFloor).style.transform =
-    `scale(${scales[currentFloor]})`;
+  scales[currentFloor] = Math.min(Math.max((scales[currentFloor]||1)*f, .2), 6);
+  document.getElementById('canvas-'+currentFloor).style.transform = `scale(${scales[currentFloor]})`;
 }
 function resetActive() {
-  scales[currentFloor] = 1.0;
-  document.getElementById('canvas-' + currentFloor).style.transform = 'scale(1)';
+  scales[currentFloor]=1;
+  document.getElementById('canvas-'+currentFloor).style.transform='scale(1)';
 }
 
 // ===== 同期ステータス =====
-function setSyncStatus(state, msg) {
-  const el = document.getElementById('sync-status');
-  el.className = 'sync-badge sync-' + state;
-  el.textContent = msg;
+function setSyncStatus(s,m){ const el=document.getElementById('sync-status'); el.className='sync-badge sync-'+s; el.textContent=m; }
+
+// ===== 全データ再読み込み =====
+async function reloadAll() {
+  await Promise.all([ reloadMarkers(), reloadSchedulePins() ]);
 }
 
-// ===== DB からマーカー読み込み =====
+// ===== DB マーカー =====
 async function reloadMarkers() {
-  setSyncStatus('busy', '⏳ 読み込み中...');
+  setSyncStatus('busy','⏳ 読み込み中...');
   try {
     const res = await fetch(`/api/markers?floor=${currentFloor}`);
-    if (!res.ok) throw new Error(res.status);
-    const markers = await res.json();
-    renderMarkers(currentFloor, markers);
-    setSyncStatus('ok', '✅ 同期済み');
-  } catch(e) {
-    setSyncStatus('err', '❌ 通信エラー');
-  }
+    renderMarkers(currentFloor, await res.json());
+    setSyncStatus('ok','✅ 同期済み');
+  } catch(e){ setSyncStatus('err','❌ 通信エラー'); }
 }
 
-// ===== マーカーを描画 =====
 function renderMarkers(floor, markers) {
-  const layer = document.getElementById('markers-' + floor);
-  layer.innerHTML = '';
-  markers.forEach(m => {
-    if (m.type === 'pin')  createPinEl(floor, m);
-    if (m.type === 'memo') createMemoEl(floor, m);
-    if (m.type === 'area') createAreaEl(floor, m);
+  const layer = document.getElementById('markers-'+floor);
+  layer.innerHTML='';
+  markers.forEach(m=>{
+    if(m.type==='pin')  createPinEl(floor,m);
+    if(m.type==='memo') createMemoEl(floor,m);
+    if(m.type==='area') createAreaEl(floor,m);
   });
 }
 
-// ===== ピン要素 =====
-function createPinEl(floor, m) {
-  const el = document.createElement('div');
-  el.className = 'marker pin-marker';
-  el.id = 'mk-' + m.id;
-  el.setAttribute('data-id', m.id);
-  el.style.left = m.x + 'px';
-  el.style.top  = m.y + 'px';
-  el.style.backgroundColor = m.color || '#e53935';
-  el.title = m.title || 'ピン';
-  attachMarkerEvents(el, floor, m);
-  document.getElementById('markers-' + floor).appendChild(el);
+function createPinEl(floor,m){
+  const el=document.createElement('div');
+  el.className='marker pin-marker'; el.id='mk-'+m.id; el.setAttribute('data-id',m.id);
+  el.style.left=m.x+'px'; el.style.top=m.y+'px'; el.style.backgroundColor=m.color||'#e53935';
+  el.title=m.title||'ピン'; attachMarkerEvents(el,floor,m);
+  document.getElementById('markers-'+floor).appendChild(el);
+}
+function createMemoEl(floor,m){
+  const el=document.createElement('div');
+  el.className='marker memo-marker'; el.id='mk-'+m.id; el.setAttribute('data-id',m.id);
+  el.style.left=m.x+'px'; el.style.top=m.y+'px';
+  el.style.borderColor=m.color||'#F9A825'; el.style.color=m.color||'#F9A825';
+  el.textContent=m.title||'メモ'; attachMarkerEvents(el,floor,m);
+  document.getElementById('markers-'+floor).appendChild(el);
+}
+function createAreaEl(floor,m){
+  const el=document.createElement('div');
+  el.className='marker area-marker'; el.id='mk-'+m.id; el.setAttribute('data-id',m.id);
+  el.style.left=m.x+'px'; el.style.top=m.y+'px';
+  el.style.width=(m.w||80)+'px'; el.style.height=(m.h||50)+'px';
+  el.style.borderColor=m.color||'#e53935'; el.style.color=m.color||'#e53935';
+  el.textContent=m.title||'エリア'; attachMarkerEvents(el,floor,m);
+  document.getElementById('markers-'+floor).appendChild(el);
 }
 
-// ===== メモ要素 =====
-function createMemoEl(floor, m) {
-  const el = document.createElement('div');
-  el.className = 'marker memo-marker';
-  el.id = 'mk-' + m.id;
-  el.setAttribute('data-id', m.id);
-  el.style.left        = m.x + 'px';
-  el.style.top         = m.y + 'px';
-  el.style.borderColor = m.color || '#F9A825';
-  el.style.color       = m.color || '#F9A825';
-  el.textContent       = m.title || 'メモ';
-  attachMarkerEvents(el, floor, m);
-  document.getElementById('markers-' + floor).appendChild(el);
-}
-
-// ===== エリア要素 =====
-function createAreaEl(floor, m) {
-  const el = document.createElement('div');
-  el.className = 'marker area-marker';
-  el.id = 'mk-' + m.id;
-  el.setAttribute('data-id', m.id);
-  el.style.left        = m.x + 'px';
-  el.style.top         = m.y + 'px';
-  el.style.width       = (m.w || 80) + 'px';
-  el.style.height      = (m.h || 50) + 'px';
-  el.style.borderColor = m.color || '#e53935';
-  el.style.color       = m.color || '#e53935';
-  el.textContent       = m.title || 'エリア';
-  attachMarkerEvents(el, floor, m);
-  document.getElementById('markers-' + floor).appendChild(el);
-}
-
-// ===== マーカーイベント（クリック＋ドラッグ）=====
-function attachMarkerEvents(el, floor, m) {
-  let dragMoved = false;
-  let startX, startY, origX, origY;
-
-  el.addEventListener('mousedown', e => {
-    if (currentTool !== 'select') return;
-    e.stopPropagation();
-    dragMoved = false;
-    const sc = scales[floor] || 1;
-    startX = e.clientX;
-    startY = e.clientY;
-    origX  = parseFloat(el.style.left);
-    origY  = parseFloat(el.style.top);
-
+function attachMarkerEvents(el,floor,m){
+  let dragMoved=false,startX,startY,origX,origY;
+  el.addEventListener('mousedown',e=>{
+    if(currentTool!=='select')return;
+    e.stopPropagation(); dragMoved=false;
+    const sc=scales[floor]||1;
+    startX=e.clientX; startY=e.clientY; origX=parseFloat(el.style.left); origY=parseFloat(el.style.top);
     el.classList.add('dragging');
-
-    const onMove = ev => {
-      const dx = (ev.clientX - startX) / sc;
-      const dy = (ev.clientY - startY) / sc;
-      if (Math.abs(dx) > 3 || Math.abs(dy) > 3) dragMoved = true;
-      if (dragMoved) {
-        el.style.left = (origX + dx) + 'px';
-        el.style.top  = (origY + dy) + 'px';
-      }
-    };
-    const onUp = async ev => {
-      el.classList.remove('dragging');
-      document.removeEventListener('mousemove', onMove);
-      document.removeEventListener('mouseup', onUp);
-      if (dragMoved) {
-        const newX = parseFloat(el.style.left);
-        const newY = parseFloat(el.style.top);
-        await fetch(`/api/markers/${m.id}`, {
-          method: 'PUT',
-          headers: {'Content-Type':'application/json'},
-          body: JSON.stringify({ x: newX, y: newY })
-        });
-        m.x = newX; m.y = newY;
-        setSyncStatus('ok', '✅ 位置を保存しました');
-      }
-    };
-    document.addEventListener('mousemove', onMove);
-    document.addEventListener('mouseup', onUp);
+    const onMove=ev=>{const dx=(ev.clientX-startX)/sc,dy=(ev.clientY-startY)/sc;if(Math.abs(dx)>3||Math.abs(dy)>3)dragMoved=true;if(dragMoved){el.style.left=(origX+dx)+'px';el.style.top=(origY+dy)+'px';}};
+    const onUp=async ev=>{el.classList.remove('dragging');document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);if(dragMoved){const nx=parseFloat(el.style.left),ny=parseFloat(el.style.top);await fetch(`/api/markers/${m.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({x:nx,y:ny})});m.x=nx;m.y=ny;setSyncStatus('ok','✅ 位置を保存');}};
+    document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
   });
+  el.addEventListener('click',e=>{if(dragMoved){dragMoved=false;return;}e.stopPropagation();if(currentTool==='select')showPopup(m,e,false);});
+}
 
-  el.addEventListener('click', e => {
-    if (dragMoved) { dragMoved = false; return; }
-    e.stopPropagation();
-    if (currentTool === 'select') showPopup(m, e);
+// ===== 作業予定ピン =====
+async function reloadSchedulePins() {
+  try {
+    const res = await fetch(`/api/schedules/floor/${currentFloor}`);
+    const schedules = await res.json();
+    renderSchedulePins(currentFloor, schedules);
+    renderLegend(schedules);
+  } catch(e){ console.warn('schedule pins error',e); }
+}
+
+function renderSchedulePins(floor, schedules) {
+  const layer = document.getElementById('schedules-'+floor);
+  layer.innerHTML='';
+  if(!showSchedules) return;
+  // 会社ごとにグルーピング（同位置の場合はオフセット）
+  schedules.forEach((s,i)=>{
+    if(!s.map_x || !s.map_y) return;
+    const color = s.color || '#1E88E5';
+    const wrap = document.createElement('div');
+    wrap.className='schedule-pin';
+    // 同じ座標が重なる場合のオフセット
+    wrap.style.left = s.map_x + 'px';
+    wrap.style.top  = s.map_y + 'px';
+
+    const dot = document.createElement('div');
+    dot.className='sch-pin-dot';
+    dot.style.background=color;
+
+    const label = document.createElement('div');
+    label.className='sch-pin-label';
+    label.textContent=`${s.company}：${s.work_content}`;
+
+    wrap.appendChild(dot);
+    wrap.appendChild(label);
+    wrap.addEventListener('click',e=>{
+      e.stopPropagation();
+      showPopup({
+        id:'sch-'+s.id, type:'schedule',
+        title:`${s.company}`,
+        body:`${s.work_content}\n📍 ${s.location||'場所未設定'}\n👷 ${s.workers_count}名\n🕒 ${s.time_start||'-'}〜${s.time_end||'-'}\n📅 ${s.date}${s.date_end&&s.date_end!==s.date?'〜'+s.date_end:''}\n${s.note?'📝 '+s.note:''}`,
+        color
+      }, e, true);
+    });
+    layer.appendChild(wrap);
   });
+}
+
+function toggleScheduleLayer() {
+  showSchedules = document.getElementById('toggleSchedules').checked;
+  reloadSchedulePins();
+}
+
+// ===== 凡例 =====
+function renderLegend(schedules) {
+  if(schedules.length===0){ document.getElementById('legendPanel').style.display='none'; return; }
+  document.getElementById('legendPanel').style.display='block';
+  const list = document.getElementById('legendList');
+  // 会社ごとにまとめる
+  const byCompany={};
+  schedules.forEach(s=>{
+    if(!byCompany[s.company]) byCompany[s.company]={color:s.color||'#1E88E5',items:[]};
+    byCompany[s.company].items.push(s);
+  });
+  list.innerHTML = Object.entries(byCompany).map(([co,v])=>`
+    <div class="legend-item" title="${v.items.map(s=>s.work_content).join(', ')}">
+      <div class="legend-dot" style="background:${v.color}"></div>
+      <div>
+        <div style="font-weight:bold;font-size:.82rem">${co}</div>
+        <div style="font-size:.72rem;color:#888">${v.items.map(s=>s.work_content).join(' / ')}</div>
+      </div>
+    </div>`).join('');
 }
 
 // ===== クリックでマーカー追加 =====
-document.querySelectorAll('.fp-wrap').forEach(wrap => {
-  wrap.addEventListener('click', function(e) {
-    if (currentTool === 'select' || currentTool === 'area') return;
-    if (e.target.classList.contains('marker') || e.target.closest('.marker')) return;
-    const pos = getRelPos(this, e);
-    pendingPos = pos;
-    if (currentTool === 'pin') {
-      addMarkerToDB({ type:'pin', floor:currentFloor, x:pos.x, y:pos.y,
-        color: document.getElementById('marker-color').value, title:'ピン', body:'' });
-    } else if (currentTool === 'memo') {
-      document.getElementById('dialog-title').textContent = '📝 メモを入力';
+document.querySelectorAll('.fp-wrap').forEach(wrap=>{
+  wrap.addEventListener('click',function(e){
+    if(currentTool==='select'||currentTool==='area')return;
+    if(e.target.classList.contains('marker')||e.target.closest('.marker'))return;
+    const pos=getRelPos(this,e);
+    pendingPos=pos;
+    if(currentTool==='pin'){
+      addMarkerToDB({type:'pin',floor:currentFloor,x:pos.x,y:pos.y,color:document.getElementById('marker-color').value,title:'ピン',body:''});
+    } else if(currentTool==='memo'){
+      document.getElementById('dialog-title').textContent='📝 メモを入力';
       openMemoDialog();
     }
   });
-
-  // エリア描画
-  let isDrawing=false, drawStart=null, drawEl=null;
-  wrap.addEventListener('mousedown', function(e) {
-    if (currentTool !== 'area') return;
-    if (e.target.classList.contains('marker') || e.target.closest('.marker')) return;
-    isDrawing = true;
-    const canvas = this.querySelector('.fp-canvas');
-    const pos = getRelPos(this, e);
-    drawStart = pos;
-    drawEl = document.createElement('div');
-    drawEl.className = 'area-drawing';
-    canvas.appendChild(drawEl);
+  let isDrawing=false,drawStart=null,drawEl=null;
+  wrap.addEventListener('mousedown',function(e){
+    if(currentTool!=='area')return;
+    if(e.target.classList.contains('marker')||e.target.closest('.marker'))return;
+    isDrawing=true;const pos=getRelPos(this,e);drawStart=pos;
+    drawEl=document.createElement('div');drawEl.className='area-drawing';
+    this.querySelector('.fp-canvas').appendChild(drawEl);
   });
-  wrap.addEventListener('mousemove', function(e) {
-    if (!isDrawing || !drawEl) return;
-    const pos = getRelPos(this, e);
-    const x = Math.min(pos.x, drawStart.x), y = Math.min(pos.y, drawStart.y);
-    const w = Math.abs(pos.x-drawStart.x), h = Math.abs(pos.y-drawStart.y);
-    drawEl.style.cssText = `left:${x}px;top:${y}px;width:${w}px;height:${h}px;`;
+  wrap.addEventListener('mousemove',function(e){
+    if(!isDrawing||!drawEl)return;const pos=getRelPos(this,e);
+    const x=Math.min(pos.x,drawStart.x),y=Math.min(pos.y,drawStart.y);
+    const w=Math.abs(pos.x-drawStart.x),h=Math.abs(pos.y-drawStart.y);
+    drawEl.style.cssText=`left:${x}px;top:${y}px;width:${w}px;height:${h}px;`;
   });
-  wrap.addEventListener('mouseup', function(e) {
-    if (!isDrawing || !drawEl) return;
-    isDrawing = false;
-    const canvas = this.querySelector('.fp-canvas');
-    const pos = getRelPos(this, e);
-    const x = Math.min(pos.x, drawStart.x), y = Math.min(pos.y, drawStart.y);
-    const w = Math.abs(pos.x-drawStart.x), h = Math.abs(pos.y-drawStart.y);
-    canvas.removeChild(drawEl); drawEl = null;
-    if (w < 10 || h < 10) return;
-    pendingPos = { x, y, w, h };
-    document.getElementById('dialog-title').textContent = '🟥 エリアのラベルを入力';
+  wrap.addEventListener('mouseup',function(e){
+    if(!isDrawing||!drawEl)return;isDrawing=false;
+    const canvas=this.querySelector('.fp-canvas');
+    const pos=getRelPos(this,e);
+    const x=Math.min(pos.x,drawStart.x),y=Math.min(pos.y,drawStart.y);
+    const w=Math.abs(pos.x-drawStart.x),h=Math.abs(pos.y-drawStart.y);
+    canvas.removeChild(drawEl);drawEl=null;
+    if(w<10||h<10)return;
+    pendingPos={x,y,w,h};
+    document.getElementById('dialog-title').textContent='🟥 エリアのラベルを入力';
     openMemoDialog();
   });
 });
 
-function getRelPos(wrap, e) {
-  const canvas = wrap.querySelector('.fp-canvas');
-  const rect   = canvas.getBoundingClientRect();
-  const sc     = scales[currentFloor] || 1;
-  return { x:(e.clientX-rect.left)/sc, y:(e.clientY-rect.top)/sc };
+function getRelPos(wrap,e){
+  const canvas=wrap.querySelector('.fp-canvas');
+  const rect=canvas.getBoundingClientRect();const sc=scales[currentFloor]||1;
+  return{x:(e.clientX-rect.left)/sc,y:(e.clientY-rect.top)/sc};
 }
 
-// ===== DBにマーカー追加 =====
-async function addMarkerToDB(data) {
-  data.id = 'mk' + Date.now() + Math.random().toString(36).slice(2,6);
+async function addMarkerToDB(data){
+  data.id='mk'+Date.now()+Math.random().toString(36).slice(2,6);
   setSyncStatus('busy','⏳ 保存中...');
-  try {
-    const res = await fetch('/api/markers', {
-      method:'POST',
-      headers:{'Content-Type':'application/json'},
-      body: JSON.stringify(data)
-    });
-    if (!res.ok) throw new Error(res.status);
-    setSyncStatus('ok','✅ 保存しました');
-    await reloadMarkers();
-  } catch(e) {
-    setSyncStatus('err','❌ 保存失敗');
-  }
+  try{
+    await fetch('/api/markers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
+    setSyncStatus('ok','✅ 保存しました');await reloadMarkers();
+  }catch(e){setSyncStatus('err','❌ 保存失敗');}
 }
 
-// ===== メモダイアログ =====
-function openMemoDialog() {
-  document.getElementById('memo-title-input').value = '';
-  document.getElementById('memo-body-input').value  = '';
-  document.getElementById('memo-dialog').style.display = 'flex';
-  setTimeout(()=>document.getElementById('memo-title-input').focus(), 50);
+function openMemoDialog(){
+  document.getElementById('memo-title-input').value='';
+  document.getElementById('memo-body-input').value='';
+  document.getElementById('memo-dialog').style.display='flex';
+  setTimeout(()=>document.getElementById('memo-title-input').focus(),50);
 }
-function cancelMemo() {
-  pendingPos = null;
-  document.getElementById('memo-dialog').style.display = 'none';
-}
-function confirmMemo() {
-  const title = document.getElementById('memo-title-input').value.trim() || (currentTool==='area'?'エリア':'メモ');
-  const body  = document.getElementById('memo-body-input').value.trim();
-  const color = document.getElementById('marker-color').value;
-  document.getElementById('memo-dialog').style.display = 'none';
-  if (!pendingPos) return;
-  const { x, y, w, h } = pendingPos;
-  pendingPos = null;
-  const isArea = (w !== undefined && currentTool === 'area');
-  addMarkerToDB({
-    type: isArea ? 'area' : 'memo',
-    floor: currentFloor,
-    x, y,
-    w: w || null,
-    h: h || null,
-    color, title, body
-  });
+function cancelMemo(){pendingPos=null;document.getElementById('memo-dialog').style.display='none';}
+function confirmMemo(){
+  const title=document.getElementById('memo-title-input').value.trim()||(currentTool==='area'?'エリア':'メモ');
+  const body=document.getElementById('memo-body-input').value.trim();
+  const color=document.getElementById('marker-color').value;
+  document.getElementById('memo-dialog').style.display='none';
+  if(!pendingPos)return;
+  const{x,y,w,h}=pendingPos;pendingPos=null;
+  const isArea=(w!==undefined&&currentTool==='area');
+  addMarkerToDB({type:isArea?'area':'memo',floor:currentFloor,x,y,w:w||null,h:h||null,color,title,body});
 }
 
-// ===== ポップアップ =====
-function showPopup(m, e) {
-  currentMarkerId = m.id;
-  const typeLabel = { pin:'📍 ピン', memo:'📝 メモ', area:'🟥 エリア' }[m.type] || 'マーカー';
-  document.getElementById('popup-title-text').textContent = m.title || typeLabel;
-  document.getElementById('popup-body-text').textContent  = m.body  || '';
-  document.getElementById('popup-meta').textContent =
-    `${m.created_by ? m.created_by + ' / ' : ''}${(m.created_at||'').slice(0,16)}`;
-  const pop = document.getElementById('marker-popup');
-  pop.style.display = 'block';
-  const vw = window.innerWidth, vh = window.innerHeight;
-  let px = e.clientX+10, py = e.clientY+10;
-  if (px+250 > vw) px = e.clientX-260;
-  if (py+160 > vh) py = e.clientY-160;
-  pop.style.left = px+'px'; pop.style.top = py+'px';
+function showPopup(m,e,isSchedule=false){
+  currentMarkerId=isSchedule?null:m.id;
+  document.getElementById('popup-title-text').textContent=m.title||'マーカー';
+  document.getElementById('popup-body-text').textContent=m.body||'';
+  document.getElementById('popup-meta').textContent=m.created_by?`${m.created_by} / ${(m.created_at||'').slice(0,16)}`:'';
+  // 作業予定ピンは削除ボタン非表示
+  document.getElementById('popup-del-btn').style.display=isSchedule?'none':'inline-block';
+  if(!isSchedule&&m.color){document.getElementById('popup-title-text').style.borderLeft=`4px solid ${m.color}`;document.getElementById('popup-title-text').style.paddingLeft='8px';}
+  const pop=document.getElementById('marker-popup');pop.style.display='block';
+  const vw=window.innerWidth,vh=window.innerHeight;
+  let px=e.clientX+10,py=e.clientY+10;
+  if(px+270>vw)px=e.clientX-270;if(py+180>vh)py=e.clientY-180;
+  pop.style.left=px+'px';pop.style.top=py+'px';
 }
-function closePopup() {
-  document.getElementById('marker-popup').style.display = 'none';
-  currentMarkerId = null;
-}
-async function deleteCurrentMarker() {
-  if (!currentMarkerId) return;
+function closePopup(){document.getElementById('marker-popup').style.display='none';currentMarkerId=null;}
+async function deleteCurrentMarker(){
+  if(!currentMarkerId)return;
   setSyncStatus('busy','⏳ 削除中...');
-  await fetch(`/api/markers/${currentMarkerId}`, { method:'DELETE' });
-  setSyncStatus('ok','✅ 削除しました');
-  closePopup();
-  await reloadMarkers();
+  await fetch(`/api/markers/${currentMarkerId}`,{method:'DELETE'});
+  setSyncStatus('ok','✅ 削除しました');closePopup();await reloadMarkers();
 }
 
-// ===== 全消去 =====
-async function clearFloor() {
-  if (!confirm(`${currentFloor.toUpperCase()} のマーカーをすべて削除しますか？`)) return;
+async function clearFloor(){
+  if(!confirm(`${currentFloor.toUpperCase()} のマーカーをすべて削除しますか？`))return;
   setSyncStatus('busy','⏳ 消去中...');
-  await fetch(`/api/markers/floor/${currentFloor}`, { method:'DELETE' });
-  setSyncStatus('ok','✅ 消去しました');
-  await reloadMarkers();
+  await fetch(`/api/markers/floor/${currentFloor}`,{method:'DELETE'});
+  setSyncStatus('ok','✅ 消去しました');await reloadMarkers();
 }
 
-// ===== 画像保存 =====
-async function downloadWithMarkers() {
+async function downloadWithMarkers(){
   setSyncStatus('busy','⏳ 画像生成中...');
-  if (!window.html2canvas) {
-    await new Promise(r => {
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-      s.onload = r; document.head.appendChild(s);
-    });
+  if(!window.html2canvas){
+    await new Promise(r=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';s.onload=r;document.head.appendChild(s);});
   }
-  const canvas = document.getElementById('canvas-' + currentFloor);
-  const sc = scales[currentFloor];
-  canvas.style.transform = 'scale(1)';
-  const cnv = await html2canvas(canvas, { scale:1, useCORS:true });
-  canvas.style.transform = `scale(${sc})`;
-  const a = document.createElement('a');
-  a.download = `配置図_${currentFloor.toUpperCase()}_${new Date().toLocaleDateString('ja')}.png`;
-  a.href = cnv.toDataURL('image/png');
-  a.click();
+  const canvas=document.getElementById('canvas-'+currentFloor);const sc=scales[currentFloor];
+  canvas.style.transform='scale(1)';
+  const cnv=await html2canvas(canvas,{scale:1,useCORS:true});
+  canvas.style.transform=`scale(${sc})`;
+  const a=document.createElement('a');
+  a.download=`配置図_${currentFloor.toUpperCase()}_${new Date().toLocaleDateString('ja')}.png`;
+  a.href=cnv.toDataURL('image/png');a.click();
   setSyncStatus('ok','✅ 同期済み');
 }
 
-// ===== 自動同期（30秒ごと）=====
-function startAutoRefresh() {
-  if (autoRefreshTimer) clearInterval(autoRefreshTimer);
-  autoRefreshTimer = setInterval(() => reloadMarkers(), 30000);
-}
-
-// ===== 初期化 =====
-document.addEventListener('DOMContentLoaded', async () => {
-  await reloadMarkers();
-  startAutoRefresh();
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') { cancelMemo(); closePopup(); }
-  });
-  document.addEventListener('click', e => {
-    const pop = document.getElementById('marker-popup');
-    if (pop.style.display !== 'none' &&
-        !pop.contains(e.target) &&
-        !e.target.closest('.marker')) closePopup();
+document.addEventListener('DOMContentLoaded',async()=>{
+  await reloadAll();
+  autoRefreshTimer=setInterval(()=>reloadAll(),30000);
+  document.addEventListener('keydown',e=>{if(e.key==='Escape'){cancelMemo();closePopup();}});
+  document.addEventListener('click',e=>{
+    const pop=document.getElementById('marker-popup');
+    if(pop.style.display!=='none'&&!pop.contains(e.target)&&!e.target.closest('.marker')&&!e.target.closest('.schedule-pin'))closePopup();
   });
 });
 </script>

@@ -21,26 +21,20 @@
       <i class="fa-solid fa-plus"></i> 追加
     </button>
   </div>
-
-  <!-- Desktop Table -->
   <div class="table-wrap">
     <table class="data-table">
       <thead>
         <tr>
           <th>協力会社</th><th>作業内容</th><th>場所</th><th>人数</th>
-          <th>開始</th><th>終了</th><th>備考</th><th>状態</th><th>操作</th>
+          <th>期間</th><th>開始</th><th>終了</th><th>備考</th><th>状態</th><th>操作</th>
         </tr>
       </thead>
       <tbody id="scheduleBody">
-        <tr><td colspan="9" class="text-center"><i class="fa-solid fa-spinner fa-spin"></i></td></tr>
+        <tr><td colspan="10" class="text-center"><i class="fa-solid fa-spinner fa-spin"></i></td></tr>
       </tbody>
     </table>
   </div>
-
-  <!-- Mobile Card List -->
-  <div class="card-list" id="scheduleCardList">
-    <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i></div>
-  </div>
+  <div class="card-list" id="scheduleCardList"></div>
 </div>
 
 <!-- 搬出入予約 Tab -->
@@ -92,68 +86,152 @@
   <div id="reportPreview" class="report-preview" style="display:none"></div>
 </div>
 
-<!-- ===== 作業予定モーダル（新規・編集共用）===== -->
+<!-- ================================================================
+     作業予定モーダル（新規・編集共用）
+     ================================================================ -->
 <div id="scheduleModal" class="modal">
-  <div class="modal-box">
+  <div class="modal-box modal-box-wide">
     <div class="modal-header">
       <h3 id="scheduleModalTitle"><i class="fa-solid fa-clipboard-list"></i> 作業予定登録</h3>
       <button onclick="closeModal('scheduleModal')">✕</button>
     </div>
     <div class="modal-body">
       <input type="hidden" id="sc_id">
-      <div class="form-grid">
-        <div class="form-group full">
-          <label>協力会社 *</label>
-          <select id="sc_company">
-            <option value="">選択してください</option>
-            {% for c in companies %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}
-          </select>
+
+      <!-- ステップインジケーター -->
+      <div class="step-bar">
+        <div class="step active" id="step1-ind">① 基本情報</div>
+        <div class="step-arrow">›</div>
+        <div class="step" id="step2-ind">② 期間設定</div>
+        <div class="step-arrow">›</div>
+        <div class="step" id="step3-ind">③ 配置図ピン</div>
+      </div>
+
+      <!-- STEP 1: 基本情報 -->
+      <div id="step1" class="step-content active">
+        <div class="form-grid">
+          <div class="form-group full">
+            <label>協力会社 *</label>
+            <select id="sc_company" onchange="updateCompanyColor()">
+              <option value="">選択してください</option>
+              {% for c in companies %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}
+            </select>
+          </div>
+          <div class="form-group full">
+            <label>作業内容 *</label>
+            <input type="text" id="sc_content" placeholder="例：3階スラブ配筋作業">
+          </div>
+          <div class="form-group">
+            <label>作業場所</label>
+            <input type="text" id="sc_location" placeholder="例：3階東側">
+          </div>
+          <div class="form-group">
+            <label>人数</label>
+            <input type="number" id="sc_workers" min="1" value="1">
+          </div>
+          <div class="form-group">
+            <label>開始時刻</label>
+            <input type="time" id="sc_start" value="08:00">
+          </div>
+          <div class="form-group">
+            <label>終了時刻</label>
+            <input type="time" id="sc_end" value="17:00">
+          </div>
+          <div class="form-group">
+            <label>状態</label>
+            <select id="sc_status">
+              <option value="予定">予定</option>
+              <option value="進行中">進行中</option>
+              <option value="完了">完了</option>
+              <option value="中止">中止</option>
+            </select>
+          </div>
+          <div class="form-group">
+            <label>表示色</label>
+            <div style="display:flex;gap:8px;align-items:center">
+              <input type="color" id="sc_color" value="#1E88E5" style="width:48px;height:36px;border:1px solid #ccc;border-radius:6px;cursor:pointer;padding:2px;">
+              <span id="sc_color_preview" style="padding:4px 12px;border-radius:4px;font-size:0.85rem;color:#fff;background:#1E88E5;">プレビュー</span>
+            </div>
+          </div>
+          <div class="form-group full">
+            <label>備考</label>
+            <textarea id="sc_note" rows="2" placeholder="特記事項"></textarea>
+          </div>
         </div>
-        <div class="form-group full">
-          <label>作業内容 *</label>
-          <input type="text" id="sc_content" placeholder="例：3階スラブ配筋作業">
-        </div>
-        <div class="form-group">
-          <label>作業場所</label>
-          <input type="text" id="sc_location" placeholder="例：3階東側">
-        </div>
-        <div class="form-group">
-          <label>人数</label>
-          <input type="number" id="sc_workers" min="1" value="1">
-        </div>
-        <div class="form-group">
-          <label>開始時刻</label>
-          <input type="time" id="sc_start" value="08:00">
-        </div>
-        <div class="form-group">
-          <label>終了時刻</label>
-          <input type="time" id="sc_end" value="17:00">
-        </div>
-        <div class="form-group">
-          <label>状態</label>
-          <select id="sc_status">
-            <option value="予定">予定</option>
-            <option value="進行中">進行中</option>
-            <option value="完了">完了</option>
-            <option value="中止">中止</option>
-          </select>
-        </div>
-        <div class="form-group full">
-          <label>備考</label>
-          <textarea id="sc_note" rows="2" placeholder="特記事項"></textarea>
+        <div class="step-nav">
+          <button class="btn btn-secondary" onclick="closeModal('scheduleModal')">キャンセル</button>
+          <button class="btn btn-primary" onclick="goStep(2)">次へ：期間設定 ›</button>
         </div>
       </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('scheduleModal')">キャンセル</button>
-      <button class="btn btn-primary" id="scheduleSaveBtn" onclick="saveSchedule()">
-        <i class="fa-solid fa-save"></i> 登録
-      </button>
+
+      <!-- STEP 2: 期間設定 -->
+      <div id="step2" class="step-content">
+        <div class="date-range-section">
+          <h4 style="margin:0 0 1rem;color:#333;">📅 作業期間を選択</h4>
+
+          <!-- カレンダー表示 -->
+          <div class="cal-nav">
+            <button class="cal-nav-btn" onclick="calPrev()">‹</button>
+            <span id="calMonthLabel" style="font-weight:bold;font-size:1rem;"></span>
+            <button class="cal-nav-btn" onclick="calNext()">›</button>
+          </div>
+          <div id="calGrid" class="cal-grid"></div>
+
+          <div class="date-range-display">
+            <div class="date-box">
+              <label>開始日</label>
+              <div id="startDateDisplay" class="date-val">未選択</div>
+              <input type="date" id="sc_date" onchange="syncCalFromInput()">
+            </div>
+            <div class="date-range-arrow">〜</div>
+            <div class="date-box">
+              <label>終了日</label>
+              <div id="endDateDisplay" class="date-val">未選択（1日のみ）</div>
+              <input type="date" id="sc_date_end" onchange="syncCalFromInput()">
+            </div>
+          </div>
+          <p class="tip-text">💡 カレンダーの日付をクリックで開始日、もう一度クリックで終了日を設定できます</p>
+        </div>
+        <div class="step-nav">
+          <button class="btn btn-secondary" onclick="goStep(1)">‹ 戻る</button>
+          <button class="btn btn-primary" onclick="goStep(3)">次へ：配置図ピン ›</button>
+        </div>
+      </div>
+
+      <!-- STEP 3: 配置図ピン -->
+      <div id="step3" class="step-content">
+        <h4 style="margin:0 0 0.75rem;color:#333;">📍 配置図上の作業位置を設定</h4>
+        <div class="pin-floor-tabs">
+          <button class="pin-tab active" onclick="switchPinFloor('1f',this)">1F</button>
+          <button class="pin-tab"        onclick="switchPinFloor('2f',this)">2F</button>
+          <button class="pin-tab clear"  onclick="clearPin()">📍 ピンを削除</button>
+        </div>
+        <p class="tip-text">💡 図面上をクリックして作業位置にピンを立ててください（任意）</p>
+        <div class="pin-map-wrap" id="pinMapWrap">
+          <div class="pin-map-canvas" id="pinMapCanvas">
+            <img id="pinMapImg" src="{{ url_for('static', filename='floorplans/floorplan_1f.png') }}"
+                 alt="配置図" draggable="false">
+            <div id="pinDot" class="pin-dot" style="display:none;"></div>
+          </div>
+        </div>
+        <input type="hidden" id="sc_floor" value="">
+        <input type="hidden" id="sc_map_x" value="">
+        <input type="hidden" id="sc_map_y" value="">
+        <div id="pinInfo" class="pin-info" style="display:none;">
+          <span id="pinInfoText"></span>
+        </div>
+        <div class="step-nav">
+          <button class="btn btn-secondary" onclick="goStep(2)">‹ 戻る</button>
+          <button class="btn btn-primary" id="scheduleSaveBtn" onclick="saveSchedule()">
+            <i class="fa-solid fa-save"></i> 登録
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </div>
 
-<!-- ===== 搬出入予約モーダル（新規・編集共用）===== -->
+<!-- 搬出入予約モーダル -->
 <div id="equipModal" class="modal">
   <div class="modal-box">
     <div class="modal-header">
@@ -167,30 +245,14 @@
           <label>設備名 *</label>
           <select id="eq_equipment">
             <option>高所作業車</option>
-            <option>Dock N12</option>
-            <option>Dock N11</option>
-            <option>Dock N10</option>
-            <option>Dock N9</option>
-            <option>Dock N8</option>
-            <option>Dock N7</option>
-            <option>Dock N6</option>
-            <option>Dock N5</option>
-            <option>Dock N4</option>
-            <option>Dock N3</option>
-            <option>Dock N2</option>
-            <option>Dock N1</option>
-            <option>Dock S8</option>
-            <option>Dock S7</option>
-            <option>Dock S6</option>
-            <option>Dock S5</option>
-            <option>Dock S4</option>
-            <option>Dock S3</option>
-            <option>Dock S2</option>
-            <option>Dock S1</option>
-            <option>EV1</option>
-            <option>EV2</option>
-            <option>EV3</option>
-            <option>EV4</option>
+            <option>Dock N12</option><option>Dock N11</option><option>Dock N10</option>
+            <option>Dock N9</option><option>Dock N8</option><option>Dock N7</option>
+            <option>Dock N6</option><option>Dock N5</option><option>Dock N4</option>
+            <option>Dock N3</option><option>Dock N2</option><option>Dock N1</option>
+            <option>Dock S8</option><option>Dock S7</option><option>Dock S6</option>
+            <option>Dock S5</option><option>Dock S4</option><option>Dock S3</option>
+            <option>Dock S2</option><option>Dock S1</option>
+            <option>EV1</option><option>EV2</option><option>EV3</option><option>EV4</option>
           </select>
         </div>
         <div class="form-group full">
@@ -200,18 +262,9 @@
             {% for c in companies %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}
           </select>
         </div>
-        <div class="form-group">
-          <label>使用開始</label>
-          <input type="time" id="eq_start" value="09:00">
-        </div>
-        <div class="form-group">
-          <label>使用終了</label>
-          <input type="time" id="eq_end" value="10:00">
-        </div>
-        <div class="form-group full">
-          <label>使用目的</label>
-          <input type="text" id="eq_purpose" placeholder="例：資材搬入">
-        </div>
+        <div class="form-group"><label>使用開始</label><input type="time" id="eq_start" value="09:00"></div>
+        <div class="form-group"><label>使用終了</label><input type="time" id="eq_end" value="10:00"></div>
+        <div class="form-group full"><label>使用目的</label><input type="text" id="eq_purpose" placeholder="例：資材搬入"></div>
       </div>
     </div>
     <div class="modal-footer">
@@ -221,22 +274,105 @@
   </div>
 </div>
 
-<!-- ===== 削除確認ダイアログ ===== -->
+<!-- 削除確認ダイアログ -->
 <div id="confirmDialog" class="modal">
   <div class="modal-box" style="max-width:380px">
     <div class="modal-header" style="background:#dc2626">
       <h3 style="color:#fff"><i class="fa-solid fa-triangle-exclamation"></i> 削除の確認</h3>
       <button onclick="closeModal('confirmDialog')" style="color:#fff">✕</button>
     </div>
-    <div class="modal-body">
-      <p id="confirmMessage" style="margin:0;font-size:1rem;">本当に削除しますか？</p>
-    </div>
+    <div class="modal-body"><p id="confirmMessage" style="margin:0;font-size:1rem;"></p></div>
     <div class="modal-footer">
       <button class="btn btn-secondary" onclick="closeModal('confirmDialog')">キャンセル</button>
       <button class="btn" style="background:#dc2626;color:#fff" id="confirmOkBtn">削除する</button>
     </div>
   </div>
 </div>
+
+<style>
+/* ===== ステップ ===== */
+.modal-box-wide { max-width: 780px !important; }
+.step-bar { display:flex; align-items:center; gap:4px; margin-bottom:1.25rem;
+  background:#f5f5f5; padding:10px 12px; border-radius:8px; }
+.step { padding:6px 16px; border-radius:20px; font-size:0.85rem; font-weight:bold;
+  color:#999; background:#fff; border:2px solid #ddd; cursor:default; }
+.step.active { color:#fff; background:#1E88E5; border-color:#1E88E5; }
+.step.done   { color:#43A047; border-color:#43A047; }
+.step-arrow  { color:#bbb; font-size:1.2rem; }
+.step-content { display:none; }
+.step-content.active { display:block; }
+.step-nav { display:flex; justify-content:flex-end; gap:8px; margin-top:1rem;
+  padding-top:1rem; border-top:1px solid #eee; }
+
+/* ===== カレンダー ===== */
+.date-range-section { background:#fafafa; border:1px solid #eee; border-radius:8px; padding:1rem; }
+.cal-nav { display:flex; align-items:center; justify-content:center; gap:1rem; margin-bottom:0.75rem; }
+.cal-nav-btn { background:#fff; border:1px solid #ccc; border-radius:4px;
+  padding:4px 12px; cursor:pointer; font-size:1rem; }
+.cal-nav-btn:hover { background:#eee; }
+.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:1rem; }
+.cal-day-name { text-align:center; font-size:0.72rem; font-weight:bold; color:#888; padding:4px 0; }
+.cal-day { text-align:center; padding:6px 2px; border-radius:6px; cursor:pointer;
+  font-size:0.85rem; border:1px solid transparent; transition:all .1s; }
+.cal-day:hover { background:#E3F2FD; }
+.cal-day.other-month { color:#ccc; }
+.cal-day.today-mark { font-weight:bold; color:#1E88E5; }
+.cal-day.range-start { background:#1E88E5; color:#fff; border-radius:6px 0 0 6px; }
+.cal-day.range-end   { background:#1E88E5; color:#fff; border-radius:0 6px 6px 0; }
+.cal-day.range-mid   { background:#BBDEFB; border-radius:0; }
+.cal-day.single-sel  { background:#1E88E5; color:#fff; border-radius:6px; }
+.date-range-display { display:flex; align-items:center; gap:12px; margin-bottom:0.5rem; }
+.date-box { flex:1; }
+.date-box label { font-size:0.78rem; color:#666; font-weight:bold; }
+.date-val { font-size:1rem; font-weight:bold; color:#333; padding:6px 10px;
+  background:#fff; border:2px solid #1E88E5; border-radius:6px; margin:4px 0; }
+.date-box input[type=date] { width:100%; font-size:0.85rem; border:1px solid #ccc;
+  border-radius:6px; padding:4px; }
+.date-range-arrow { font-size:1.5rem; color:#999; }
+.tip-text { font-size:0.78rem; color:#888; margin:0; }
+
+/* ===== 配置図ピン ===== */
+.pin-floor-tabs { display:flex; gap:6px; margin-bottom:8px; }
+.pin-tab { padding:5px 18px; border:2px solid #bbb; border-radius:6px;
+  background:#fff; cursor:pointer; font-size:0.85rem; font-weight:bold; }
+.pin-tab.active { border-color:#1E88E5; background:#E3F2FD; color:#1E88E5; }
+.pin-tab.clear  { border-color:#e53935; color:#e53935; }
+.pin-tab.clear:hover { background:#FFEBEE; }
+.pin-map-wrap { overflow:auto; border:1px solid #ccc; border-radius:8px;
+  background:#f0f0f0; max-height:340px; cursor:crosshair; }
+.pin-map-canvas { position:relative; display:inline-block; }
+.pin-map-canvas img { display:block; max-width:100%; pointer-events:none; user-select:none; }
+.pin-dot { position:absolute; width:24px; height:24px;
+  border-radius:50% 50% 50% 0; transform:rotate(-45deg) translate(-50%,-50%);
+  border:3px solid rgba(0,0,0,.3); box-shadow:2px 2px 4px rgba(0,0,0,.4);
+  pointer-events:none; z-index:10; }
+.pin-info { margin-top:8px; padding:6px 12px; background:#E3F2FD;
+  border-radius:6px; font-size:0.82rem; color:#1E88E5; font-weight:bold; }
+
+/* ===== アクション ===== */
+.action-cell { white-space:nowrap; }
+.btn-icon.blue  { color:#1E88E5; }
+.btn-icon.green { color:#43A047; }
+
+/* ===== タイムラインバー ===== */
+.tl-bar-wrap { position:absolute; top:4px; height:calc(100% - 8px); min-width:4px; }
+.tl-bar-wrap:hover .tl-bar-actions { display:flex; }
+.tl-bar { width:100%; height:100%; border-radius:4px; display:flex; flex-direction:column;
+  justify-content:center; padding:2px 6px; box-sizing:border-box; overflow:hidden;
+  cursor:pointer; color:#fff; font-size:0.75rem; line-height:1.3; }
+.tl-bar-label { font-weight:bold; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+.tl-bar-time  { font-size:0.68rem; opacity:.85; }
+.tl-bar-actions { display:none; position:absolute; top:-28px; left:0; gap:2px;
+  background:rgba(0,0,0,.75); border-radius:4px; padding:2px 4px; z-index:10; white-space:nowrap; }
+.tl-edit-btn, .tl-del-btn { background:none; border:none; cursor:pointer;
+  font-size:.85rem; padding:2px 4px; border-radius:3px; }
+.tl-edit-btn:hover { background:rgba(255,255,255,.2); }
+.tl-del-btn:hover  { background:rgba(255,0,0,.3); }
+
+/* 期間バッジ */
+.period-badge { font-size:0.72rem; color:#1E88E5; background:#E3F2FD;
+  padding:1px 6px; border-radius:10px; white-space:nowrap; }
+</style>
 
 {% endblock %}
 
@@ -246,13 +382,25 @@ const today = '{{ today }}';
 let currentTab = 'schedule';
 let confirmCallback = null;
 
-function goFloorplan() { window.location.href = '/floorplan'; }
+// 会社ごとの色（自動割り当て）
+const COMPANY_COLORS = [
+  '#1E88E5','#43A047','#F9A825','#e53935','#8E24AA',
+  '#00ACC1','#FB8C00','#6D4C41','#546E7A','#EC407A'
+];
+const companyColorMap = {};
+let colorIdx = 0;
+function getCompanyColor(name) {
+  if (!companyColorMap[name]) {
+    companyColorMap[name] = COMPANY_COLORS[colorIdx++ % COMPANY_COLORS.length];
+  }
+  return companyColorMap[name];
+}
 
+function goFloorplan() { window.location.href = '/floorplan'; }
 window.fabAction = function() {
   if (currentTab === 'schedule') openScheduleModal();
   else if (currentTab === 'equipment') openEquipModal();
 };
-
 function switchTab(name) {
   document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
   document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
@@ -262,185 +410,358 @@ function switchTab(name) {
   if (name === 'schedule') loadSchedules();
   if (name === 'equipment') loadEquipment();
 }
-
-// ===== 削除確認ダイアログ =====
-function showConfirm(message, callback) {
-  document.getElementById('confirmMessage').textContent = message;
-  confirmCallback = callback;
+function showConfirm(msg, cb) {
+  document.getElementById('confirmMessage').textContent = msg;
+  confirmCallback = cb;
   document.getElementById('confirmDialog').classList.add('open');
-  document.getElementById('confirmOkBtn').onclick = () => {
-    closeModal('confirmDialog');
-    if (confirmCallback) confirmCallback();
-  };
+  document.getElementById('confirmOkBtn').onclick = () => { closeModal('confirmDialog'); cb(); };
 }
 
 // ================================================================
-//  作業予定
+//  STEP ナビゲーション
+// ================================================================
+function goStep(n) {
+  if (n === 2) {
+    if (!document.getElementById('sc_company').value ||
+        !document.getElementById('sc_content').value.trim()) {
+      showToast('協力会社と作業内容は必須です', 'error'); return;
+    }
+  }
+  [1,2,3].forEach(i => {
+    document.getElementById('step'+i).classList.toggle('active', i===n);
+    const ind = document.getElementById('step'+i+'-ind');
+    ind.classList.toggle('active', i===n);
+    ind.classList.toggle('done',   i<n);
+  });
+  if (n === 2) renderCal();
+  if (n === 3) renderPinMap();
+}
+
+// ================================================================
+//  カレンダー
+// ================================================================
+let calYear, calMonth, rangeStart = null, rangeEnd = null, calClickState = 0;
+
+function initCal() {
+  const d = new Date();
+  calYear = d.getFullYear(); calMonth = d.getMonth();
+}
+function calPrev() { calMonth--; if(calMonth<0){calMonth=11;calYear--;} renderCal(); }
+function calNext() { calMonth++; if(calMonth>11){calMonth=0;calYear++;} renderCal(); }
+
+function renderCal() {
+  document.getElementById('calMonthLabel').textContent =
+    `${calYear}年 ${calMonth+1}月`;
+  const grid = document.getElementById('calGrid');
+  const days = ['日','月','火','水','木','金','土'];
+  let html = days.map(d=>`<div class="cal-day-name">${d}</div>`).join('');
+  const first = new Date(calYear, calMonth, 1).getDay();
+  const last  = new Date(calYear, calMonth+1, 0).getDate();
+  const todayStr = new Date().toISOString().slice(0,10);
+
+  // 前月埋め
+  for (let i=0;i<first;i++) {
+    const d = new Date(calYear, calMonth, -first+1+i);
+    html += `<div class="cal-day other-month">${d.getDate()}</div>`;
+  }
+  for (let d=1; d<=last; d++) {
+    const ds = `${calYear}-${String(calMonth+1).padStart(2,'0')}-${String(d).padStart(2,'0')}`;
+    let cls = 'cal-day';
+    if (ds === todayStr) cls += ' today-mark';
+    if (rangeStart && rangeEnd) {
+      if (ds === rangeStart && ds === rangeEnd) cls += ' single-sel';
+      else if (ds === rangeStart) cls += ' range-start';
+      else if (ds === rangeEnd)   cls += ' range-end';
+      else if (ds > rangeStart && ds < rangeEnd) cls += ' range-mid';
+    } else if (rangeStart && ds === rangeStart) cls += ' single-sel';
+    html += `<div class="${cls}" onclick="calClick('${ds}')">${d}</div>`;
+  }
+  grid.innerHTML = html;
+  updateDateDisplay();
+}
+
+function calClick(ds) {
+  if (!rangeStart || calClickState === 2) {
+    rangeStart = ds; rangeEnd = null; calClickState = 1;
+  } else {
+    if (ds < rangeStart) { rangeEnd = rangeStart; rangeStart = ds; }
+    else                 { rangeEnd = ds; }
+    calClickState = 2;
+  }
+  document.getElementById('sc_date').value     = rangeStart || '';
+  document.getElementById('sc_date_end').value = rangeEnd   || '';
+  renderCal();
+}
+
+function syncCalFromInput() {
+  rangeStart = document.getElementById('sc_date').value     || null;
+  rangeEnd   = document.getElementById('sc_date_end').value || null;
+  calClickState = rangeEnd ? 2 : (rangeStart ? 1 : 0);
+  renderCal();
+}
+
+function updateDateDisplay() {
+  document.getElementById('startDateDisplay').textContent =
+    rangeStart ? rangeStart.replace(/-/g,'/') : '未選択';
+  document.getElementById('endDateDisplay').textContent =
+    rangeEnd ? rangeEnd.replace(/-/g,'/') : '未選択（1日のみ）';
+}
+
+// ================================================================
+//  ピンマップ
+// ================================================================
+let pinFloor = '1f', pinX = null, pinY = null;
+
+function switchPinFloor(floor, btn) {
+  pinFloor = floor;
+  document.querySelectorAll('.pin-tab:not(.clear)').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('pinMapImg').src =
+    `/static/floorplans/floorplan_${floor}.png`;
+  document.getElementById('sc_floor').value = floor;
+  updatePinDot();
+}
+
+function clearPin() {
+  pinX = null; pinY = null;
+  document.getElementById('sc_map_x').value = '';
+  document.getElementById('sc_map_y').value = '';
+  document.getElementById('sc_floor').value = '';
+  document.getElementById('pinDot').style.display = 'none';
+  document.getElementById('pinInfo').style.display = 'none';
+}
+
+function renderPinMap() {
+  const canvas = document.getElementById('pinMapCanvas');
+  canvas.onclick = function(e) {
+    const rect  = canvas.getBoundingClientRect();
+    const img   = document.getElementById('pinMapImg');
+    const scaleX = img.naturalWidth  / img.clientWidth;
+    const scaleY = img.naturalHeight / img.clientHeight;
+    pinX = (e.clientX - rect.left)  * scaleX;
+    pinY = (e.clientY - rect.top)   * scaleY;
+    document.getElementById('sc_map_x').value  = pinX.toFixed(1);
+    document.getElementById('sc_map_y').value  = pinY.toFixed(1);
+    document.getElementById('sc_floor').value  = pinFloor;
+    updatePinDot();
+  };
+  // 既存ピンを復元
+  const mx = document.getElementById('sc_map_x').value;
+  const my = document.getElementById('sc_map_y').value;
+  if (mx && my) { pinX = parseFloat(mx); pinY = parseFloat(my); updatePinDot(); }
+}
+
+function updatePinDot() {
+  const dot = document.getElementById('pinDot');
+  const img = document.getElementById('pinMapImg');
+  const info = document.getElementById('pinInfo');
+  if (pinX === null) { dot.style.display = 'none'; info.style.display = 'none'; return; }
+  const scaleX = img.clientWidth  / img.naturalWidth;
+  const scaleY = img.clientHeight / img.naturalHeight;
+  const color = document.getElementById('sc_color').value || '#1E88E5';
+  dot.style.display = 'block';
+  dot.style.left    = (pinX * scaleX) + 'px';
+  dot.style.top     = (pinY * scaleY) + 'px';
+  dot.style.background = color;
+  info.style.display = 'block';
+  document.getElementById('pinInfoText').textContent =
+    `📍 ${pinFloor.toUpperCase()} — X:${Math.round(pinX)} Y:${Math.round(pinY)}`;
+}
+
+// ================================================================
+//  作業予定 CRUD
 // ================================================================
 async function loadSchedules() {
   const date = document.getElementById('scheduleDate').value;
-  const res = await fetch('/api/schedules');
+  const res  = await fetch(`/api/schedules?date=${date}`);
   const data = await res.json();
-  const filtered = data.filter(s => s.date === date);
 
-  // Desktop Table
   const tbody = document.getElementById('scheduleBody');
-  if (filtered.length === 0) {
-    tbody.innerHTML = '<tr><td colspan="9" class="text-center empty-state">この日の予定はありません</td></tr>';
+  if (data.length === 0) {
+    tbody.innerHTML = '<tr><td colspan="10" class="text-center empty-state">この日の予定はありません</td></tr>';
   } else {
-    tbody.innerHTML = filtered.map(s => `
-      <tr id="sc-row-${s.id}">
-        <td><span class="badge blue">${s.company}</span></td>
-        <td>${s.work_content}</td>
+    tbody.innerHTML = data.map(s => {
+      const color = s.color || getCompanyColor(s.company);
+      const period = s.date_end && s.date_end !== s.date
+        ? `<span class="period-badge">${s.date}〜${s.date_end}</span>`
+        : `<span style="font-size:0.78rem;color:#888">${s.date}</span>`;
+      const pinBadge = s.map_x
+        ? `<span title="${s.floor?.toUpperCase()} に配置済み" style="cursor:pointer" onclick="goFloorplan()">📍</span>` : '';
+      return `<tr>
+        <td><span class="badge" style="background:${color};color:#fff">${s.company}</span></td>
+        <td>${s.work_content} ${pinBadge}</td>
         <td>${s.location||'-'}</td>
         <td>${s.workers_count}名</td>
-        <td>${s.time_start||'-'}</td>
-        <td>${s.time_end||'-'}</td>
-        <td>${s.note||'-'}</td>
+        <td>${period}</td>
+        <td>${s.time_start||'-'}</td><td>${s.time_end||'-'}</td>
+        <td style="max-width:120px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${s.note||'-'}</td>
         <td><span class="badge ${statusColor(s.status)}">${s.status||'予定'}</span></td>
         <td class="action-cell">
           <button class="btn-icon blue" title="編集" onclick='editSchedule(${JSON.stringify(s)})'>
-            <i class="fa-solid fa-pen"></i>
-          </button>
+            <i class="fa-solid fa-pen"></i></button>
           <button class="btn-icon green" title="完了" onclick="completeSchedule('${s.id}')">
-            <i class="fa-solid fa-check"></i>
-          </button>
-          <button class="btn-icon red" title="削除" onclick="deleteSchedule('${s.id}', '${s.work_content}')">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        </td>
-      </tr>`).join('');
+            <i class="fa-solid fa-check"></i></button>
+          <button class="btn-icon red" title="削除" onclick="deleteSchedule('${s.id}','${s.work_content}')">
+            <i class="fa-solid fa-trash"></i></button>
+        </td></tr>`;
+    }).join('');
   }
 
-  // Mobile Cards
-  const cardList = document.getElementById('scheduleCardList');
-  if (filtered.length === 0) {
-    cardList.innerHTML = '<div class="empty-state"><i class="fa-solid fa-calendar-xmark"></i> この日の予定はありません</div>';
-  } else {
-    cardList.innerHTML = filtered.map(s => `
-      <div class="card-list-item" id="sc-card-${s.id}">
-        <div class="cli-header">
-          <span class="cli-title">${s.work_content}</span>
-          <span class="badge ${statusColor(s.status)}">${s.status||'予定'}</span>
-        </div>
-        <div class="cli-meta">
-          <span><i class="fa-solid fa-building"></i>${s.company}</span>
-          <span><i class="fa-solid fa-location-dot"></i>${s.location||'未設定'}</span>
-          <span><i class="fa-solid fa-users"></i>${s.workers_count}名</span>
-          <span><i class="fa-solid fa-clock"></i>${s.time_start||'--'}〜${s.time_end||'--'}</span>
-        </div>
-        ${s.note ? `<div style="font-size:12px;color:#64748b;margin-top:4px">${s.note}</div>` : ''}
-        <div class="cli-actions">
-          <button class="btn btn-sm btn-primary" onclick='editSchedule(${JSON.stringify(s)})'>
-            <i class="fa-solid fa-pen"></i> 編集
-          </button>
-          <button class="btn btn-sm btn-secondary" onclick="completeSchedule('${s.id}')">
-            <i class="fa-solid fa-check"></i> 完了
-          </button>
-          <button class="btn btn-sm" style="background:#fef2f2;color:#dc2626"
-                  onclick="deleteSchedule('${s.id}', '${s.work_content}')">
-            <i class="fa-solid fa-trash"></i>
-          </button>
-        </div>
-      </div>`).join('');
-  }
+  // Mobile cards
+  const cl = document.getElementById('scheduleCardList');
+  cl.innerHTML = data.length === 0 ? '' : data.map(s => {
+    const color = s.color || getCompanyColor(s.company);
+    const period = s.date_end && s.date_end !== s.date ? `${s.date}〜${s.date_end}` : s.date;
+    return `<div class="card-list-item">
+      <div class="cli-header">
+        <span class="cli-title">${s.work_content}${s.map_x?'&nbsp;📍':''}</span>
+        <span class="badge ${statusColor(s.status)}">${s.status||'予定'}</span>
+      </div>
+      <div class="cli-meta">
+        <span style="color:${color};font-weight:bold"><i class="fa-solid fa-building"></i>${s.company}</span>
+        <span><i class="fa-solid fa-calendar"></i>${period}</span>
+        <span><i class="fa-solid fa-users"></i>${s.workers_count}名</span>
+        <span><i class="fa-solid fa-clock"></i>${s.time_start||'--'}〜${s.time_end||'--'}</span>
+      </div>
+      <div class="cli-actions">
+        <button class="btn btn-sm btn-primary" onclick='editSchedule(${JSON.stringify(s)})'>
+          <i class="fa-solid fa-pen"></i> 編集</button>
+        <button class="btn btn-sm btn-secondary" onclick="completeSchedule('${s.id}')">
+          <i class="fa-solid fa-check"></i> 完了</button>
+        <button class="btn btn-sm" style="background:#fef2f2;color:#dc2626"
+                onclick="deleteSchedule('${s.id}','${s.work_content}')">
+          <i class="fa-solid fa-trash"></i></button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function statusColor(s) {
-  return s==='完了'?'green': s==='進行中'?'blue': s==='中止'?'red': 'orange';
+  return s==='完了'?'green':s==='進行中'?'blue':s==='中止'?'red':'orange';
 }
 
-// 新規登録モーダルを開く
+function updateCompanyColor() {
+  const name = document.getElementById('sc_company').value;
+  if (name) {
+    const c = getCompanyColor(name);
+    document.getElementById('sc_color').value = c;
+    document.getElementById('sc_color_preview').style.background = c;
+    document.getElementById('sc_color_preview').textContent = name;
+  }
+}
+
+document.getElementById('sc_color').addEventListener('input', function() {
+  document.getElementById('sc_color_preview').style.background = this.value;
+  if (pinX !== null) updatePinDot();
+});
+
 function openScheduleModal() {
-  document.getElementById('sc_id').value = '';
+  document.getElementById('sc_id').value      = '';
   document.getElementById('sc_company').value = '';
   document.getElementById('sc_content').value = '';
-  document.getElementById('sc_location').value = '';
+  document.getElementById('sc_location').value= '';
   document.getElementById('sc_workers').value = '1';
-  document.getElementById('sc_start').value = '08:00';
-  document.getElementById('sc_end').value = '17:00';
-  document.getElementById('sc_status').value = '予定';
-  document.getElementById('sc_note').value = '';
+  document.getElementById('sc_start').value   = '08:00';
+  document.getElementById('sc_end').value     = '17:00';
+  document.getElementById('sc_status').value  = '予定';
+  document.getElementById('sc_note').value    = '';
+  document.getElementById('sc_color').value   = '#1E88E5';
+  document.getElementById('sc_color_preview').style.background = '#1E88E5';
+  document.getElementById('sc_color_preview').textContent = 'プレビュー';
+  // 日付は現在の対象日をデフォルトに
+  const d = document.getElementById('scheduleDate').value;
+  document.getElementById('sc_date').value     = d;
+  document.getElementById('sc_date_end').value = '';
+  rangeStart = d; rangeEnd = null; calClickState = 1;
+  clearPin();
+  pinFloor = '1f';
   document.getElementById('scheduleModalTitle').innerHTML =
     '<i class="fa-solid fa-plus"></i> 作業予定 追加';
   document.getElementById('scheduleSaveBtn').innerHTML =
     '<i class="fa-solid fa-save"></i> 登録';
+  initCal();
+  goStep(1);
   document.getElementById('scheduleModal').classList.add('open');
 }
 
-// 編集モーダルを開く（既存データをセット）
 function editSchedule(s) {
-  document.getElementById('sc_id').value          = s.id;
-  document.getElementById('sc_company').value     = s.company;
-  document.getElementById('sc_content').value     = s.work_content;
-  document.getElementById('sc_location').value    = s.location || '';
-  document.getElementById('sc_workers').value     = s.workers_count || 1;
-  document.getElementById('sc_start').value       = s.time_start || '08:00';
-  document.getElementById('sc_end').value         = s.time_end   || '17:00';
-  document.getElementById('sc_status').value      = s.status     || '予定';
-  document.getElementById('sc_note').value        = s.note       || '';
+  document.getElementById('sc_id').value       = s.id;
+  document.getElementById('sc_company').value  = s.company;
+  document.getElementById('sc_content').value  = s.work_content;
+  document.getElementById('sc_location').value = s.location  || '';
+  document.getElementById('sc_workers').value  = s.workers_count || 1;
+  document.getElementById('sc_start').value    = s.time_start|| '08:00';
+  document.getElementById('sc_end').value      = s.time_end  || '17:00';
+  document.getElementById('sc_status').value   = s.status    || '予定';
+  document.getElementById('sc_note').value     = s.note      || '';
+  const color = s.color || getCompanyColor(s.company);
+  document.getElementById('sc_color').value    = color;
+  document.getElementById('sc_color_preview').style.background = color;
+  document.getElementById('sc_color_preview').textContent = s.company;
+  document.getElementById('sc_date').value     = s.date || '';
+  document.getElementById('sc_date_end').value = s.date_end || '';
+  rangeStart = s.date || null;
+  rangeEnd   = s.date_end || null;
+  calClickState = rangeEnd ? 2 : 1;
+  // ピン
+  pinFloor = s.floor || '1f';
+  pinX = s.map_x ? parseFloat(s.map_x) : null;
+  pinY = s.map_y ? parseFloat(s.map_y) : null;
+  document.getElementById('sc_map_x').value = s.map_x || '';
+  document.getElementById('sc_map_y').value = s.map_y || '';
+  document.getElementById('sc_floor').value = s.floor || '';
   document.getElementById('scheduleModalTitle').innerHTML =
     '<i class="fa-solid fa-pen"></i> 作業予定 編集';
   document.getElementById('scheduleSaveBtn').innerHTML =
     '<i class="fa-solid fa-save"></i> 更新';
+  initCal();
+  goStep(1);
   document.getElementById('scheduleModal').classList.add('open');
 }
 
-// 登録 or 更新
 async function saveSchedule() {
   const id      = document.getElementById('sc_id').value;
   const company = document.getElementById('sc_company').value;
   const content = document.getElementById('sc_content').value.trim();
-  if (!company || !content) { showToast('協力会社と作業内容は必須です', 'error'); return; }
+  const dateVal = document.getElementById('sc_date').value;
+  if (!company || !content) { showToast('協力会社と作業内容は必須です','error'); return; }
+  if (!dateVal)             { showToast('開始日を選択してください','error');  return; }
 
   const body = {
-    date:          document.getElementById('scheduleDate').value,
-    company,
-    work_content:  content,
+    date:          dateVal,
+    date_end:      document.getElementById('sc_date_end').value || null,
+    company, work_content: content,
     location:      document.getElementById('sc_location').value,
-    workers_count: parseInt(document.getElementById('sc_workers').value) || 1,
+    workers_count: parseInt(document.getElementById('sc_workers').value)||1,
     time_start:    document.getElementById('sc_start').value,
     time_end:      document.getElementById('sc_end').value,
     status:        document.getElementById('sc_status').value,
     note:          document.getElementById('sc_note').value,
+    color:         document.getElementById('sc_color').value,
+    floor:         document.getElementById('sc_floor').value || null,
+    map_x:         document.getElementById('sc_map_x').value ? parseFloat(document.getElementById('sc_map_x').value) : null,
+    map_y:         document.getElementById('sc_map_y').value ? parseFloat(document.getElementById('sc_map_y').value) : null,
   };
 
   if (id) {
-    // 編集（PUT）
-    await fetch(`/api/schedules/${id}`, {
-      method: 'PUT',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(body)
-    });
-    showToast('作業予定を更新しました', 'success');
+    await fetch(`/api/schedules/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    showToast('更新しました','success');
   } else {
-    // 新規（POST）
-    await fetch('/api/schedules', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(body)
-    });
-    showToast('作業予定を登録しました', 'success');
+    await fetch('/api/schedules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
+    showToast('登録しました','success');
   }
   closeModal('scheduleModal');
   loadSchedules();
 }
 
 async function completeSchedule(id) {
-  await fetch(`/api/schedules/${id}`, {
-    method: 'PUT',
-    headers: {'Content-Type':'application/json'},
-    body: JSON.stringify({status:'完了'})
-  });
-  loadSchedules();
-  showToast('完了にしました', 'success');
+  await fetch(`/api/schedules/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({status:'完了'})});
+  loadSchedules(); showToast('完了にしました','success');
 }
-
 function deleteSchedule(id, name) {
-  showConfirm(`「${name}」を削除しますか？`, async () => {
-    await fetch(`/api/schedules/${id}`, {method:'DELETE'});
-    loadSchedules();
-    showToast('削除しました', 'info');
+  showConfirm(`「${name}」を削除しますか？`, async()=>{
+    await fetch(`/api/schedules/${id}`,{method:'DELETE'});
+    loadSchedules(); showToast('削除しました','info');
   });
 }
 
@@ -462,30 +783,19 @@ async function loadEquipment() {
   const data = await res.json();
   const filtered = data.filter(e => e.date === date);
 
-  // Desktop Table
   const tbody = document.getElementById('equipBody');
-  tbody.innerHTML = filtered.length === 0
+  tbody.innerHTML = filtered.length===0
     ? '<tr><td colspan="6" class="text-center empty-state">この日の予約はありません</td></tr>'
-    : filtered.map(e => `
-        <tr>
-          <td>${e.equipment}</td>
-          <td>${e.company}</td>
-          <td>${e.time_start}</td>
-          <td>${e.time_end}</td>
-          <td>${e.purpose||'-'}</td>
-          <td class="action-cell">
-            <button class="btn-icon blue" title="編集" onclick='editEquip(${JSON.stringify(e)})'>
-              <i class="fa-solid fa-pen"></i>
-            </button>
-            <button class="btn-icon red" title="削除" onclick="deleteEquip('${e.id}','${e.equipment}')">
-              <i class="fa-solid fa-trash"></i>
-            </button>
-          </td>
-        </tr>`).join('');
+    : filtered.map(e=>`<tr>
+        <td>${e.equipment}</td><td>${e.company}</td>
+        <td>${e.time_start}</td><td>${e.time_end}</td><td>${e.purpose||'-'}</td>
+        <td class="action-cell">
+          <button class="btn-icon blue" onclick='editEquip(${JSON.stringify(e)})'><i class="fa-solid fa-pen"></i></button>
+          <button class="btn-icon red"  onclick="deleteEquip('${e.id}','${e.equipment}')"><i class="fa-solid fa-trash"></i></button>
+        </td></tr>`).join('');
 
-  // Mobile Cards
   const cl = document.getElementById('equipCardList');
-  cl.innerHTML = filtered.length === 0 ? '' : filtered.map(e => `
+  cl.innerHTML = filtered.length===0?'':filtered.map(e=>`
     <div class="card-list-item">
       <div class="cli-header">
         <span class="cli-title">${e.equipment}</span>
@@ -493,210 +803,80 @@ async function loadEquipment() {
       </div>
       <div class="cli-meta">
         <span><i class="fa-solid fa-building"></i>${e.company}</span>
-        ${e.purpose ? `<span><i class="fa-solid fa-note-sticky"></i>${e.purpose}</span>` : ''}
+        ${e.purpose?`<span><i class="fa-solid fa-note-sticky"></i>${e.purpose}</span>`:''}
       </div>
       <div class="cli-actions">
-        <button class="btn btn-sm btn-primary" onclick='editEquip(${JSON.stringify(e)})'>
-          <i class="fa-solid fa-pen"></i> 編集
-        </button>
-        <button class="btn btn-sm" style="background:#fef2f2;color:#dc2626"
-                onclick="deleteEquip('${e.id}','${e.equipment}')">
-          <i class="fa-solid fa-trash"></i> 削除
-        </button>
+        <button class="btn btn-sm btn-primary" onclick='editEquip(${JSON.stringify(e)})'><i class="fa-solid fa-pen"></i> 編集</button>
+        <button class="btn btn-sm" style="background:#fef2f2;color:#dc2626" onclick="deleteEquip('${e.id}','${e.equipment}')"><i class="fa-solid fa-trash"></i></button>
       </div>
     </div>`).join('');
 
-  // Timeline
-  document.getElementById('timelineRows').innerHTML = EQUIPS.map((eq, ei) => {
-    const color = ECOLS[ei % ECOLS.length];
-    const bars = filtered.filter(e => e.equipment === eq).map(e => {
-      const s  = timeToPercent(e.time_start);
-      const en = timeToPercent(e.time_end);
-      const w  = en - s;
-      return `
-        <div class="tl-bar-wrap" style="left:${s}%;width:${w}%;">
-          <div class="tl-bar" style="background:${color};"
-               title="${e.company}｜${e.time_start}〜${e.time_end}${e.purpose?'｜'+e.purpose:''}">
-            <span class="tl-bar-label">${e.company}</span>
-            <span class="tl-bar-time">${e.time_start}〜${e.time_end}</span>
-          </div>
-          <div class="tl-bar-actions">
-            <button class="tl-edit-btn" onclick='editEquip(${JSON.stringify(e)})' title="編集">✏️</button>
-            <button class="tl-del-btn"  onclick="deleteEquip('${e.id}','${e.equipment}')" title="削除">🗑</button>
-          </div>
-        </div>`;
+  document.getElementById('timelineRows').innerHTML = EQUIPS.map((eq,ei)=>{
+    const color = ECOLS[ei%ECOLS.length];
+    const bars = filtered.filter(e=>e.equipment===eq).map(e=>{
+      const s=timeToPercent(e.time_start),en=timeToPercent(e.time_end),w=en-s;
+      return `<div class="tl-bar-wrap" style="left:${s}%;width:${w}%;">
+        <div class="tl-bar" style="background:${color};" title="${e.company}｜${e.time_start}〜${e.time_end}">
+          <span class="tl-bar-label">${e.company}</span>
+          <span class="tl-bar-time">${e.time_start}〜${e.time_end}</span>
+        </div>
+        <div class="tl-bar-actions">
+          <button class="tl-edit-btn" onclick='editEquip(${JSON.stringify(e)})'>✏️</button>
+          <button class="tl-del-btn"  onclick="deleteEquip('${e.id}','${e.equipment}')">🗑</button>
+        </div>
+      </div>`;
     }).join('');
-    return `<div class="timeline-row">
-              <div class="tl-label">${eq}</div>
-              <div class="tl-track">${bars}</div>
-            </div>`;
+    return `<div class="timeline-row"><div class="tl-label">${eq}</div><div class="tl-track">${bars}</div></div>`;
   }).join('');
 }
 
-function timeToPercent(t) {
-  const [h,m] = t.split(':').map(Number);
-  return ((h-7)*60+m) / (12*60) * 100;
-}
-
-// 新規予約モーダルを開く
-function openEquipModal() {
-  document.getElementById('eq_id').value       = '';
-  document.getElementById('eq_equipment').selectedIndex = 0;
-  document.getElementById('eq_company').value  = '';
-  document.getElementById('eq_start').value    = '09:00';
-  document.getElementById('eq_end').value      = '10:00';
-  document.getElementById('eq_purpose').value  = '';
-  document.getElementById('equipModalTitle').innerHTML =
-    '<i class="fa-solid fa-truck-ramp-box"></i> 搬出入予約 追加';
-  document.getElementById('equipSaveBtn').textContent = '予約する';
+function timeToPercent(t){const[h,m]=t.split(':').map(Number);return((h-7)*60+m)/(12*60)*100;}
+function openEquipModal(){
+  document.getElementById('eq_id').value='';
+  document.getElementById('eq_equipment').selectedIndex=0;
+  document.getElementById('eq_company').value='';
+  document.getElementById('eq_start').value='09:00';
+  document.getElementById('eq_end').value='10:00';
+  document.getElementById('eq_purpose').value='';
+  document.getElementById('equipModalTitle').innerHTML='<i class="fa-solid fa-truck-ramp-box"></i> 搬出入予約 追加';
+  document.getElementById('equipSaveBtn').textContent='予約する';
   document.getElementById('equipModal').classList.add('open');
 }
-
-// 編集モーダルを開く
-function editEquip(e) {
-  document.getElementById('eq_id').value      = e.id;
-  document.getElementById('eq_equipment').value = e.equipment;
-  document.getElementById('eq_company').value = e.company;
-  document.getElementById('eq_start').value   = e.time_start;
-  document.getElementById('eq_end').value     = e.time_end;
-  document.getElementById('eq_purpose').value = e.purpose || '';
-  document.getElementById('equipModalTitle').innerHTML =
-    '<i class="fa-solid fa-pen"></i> 搬出入予約 編集';
-  document.getElementById('equipSaveBtn').textContent = '更新する';
+function editEquip(e){
+  document.getElementById('eq_id').value=e.id;
+  document.getElementById('eq_equipment').value=e.equipment;
+  document.getElementById('eq_company').value=e.company;
+  document.getElementById('eq_start').value=e.time_start;
+  document.getElementById('eq_end').value=e.time_end;
+  document.getElementById('eq_purpose').value=e.purpose||'';
+  document.getElementById('equipModalTitle').innerHTML='<i class="fa-solid fa-pen"></i> 搬出入予約 編集';
+  document.getElementById('equipSaveBtn').textContent='更新する';
   document.getElementById('equipModal').classList.add('open');
 }
-
-// 登録 or 更新
-async function saveEquipment() {
-  const id = document.getElementById('eq_id').value;
-  const co = document.getElementById('eq_company').value;
-  if (!co) { showToast('協力会社は必須です', 'error'); return; }
-
-  const body = {
-    date:       document.getElementById('equipDate').value,
-    equipment:  document.getElementById('eq_equipment').value,
-    company:    co,
-    time_start: document.getElementById('eq_start').value,
-    time_end:   document.getElementById('eq_end').value,
-    purpose:    document.getElementById('eq_purpose').value,
-  };
-
-  if (id) {
-    // 編集（PUT）
-    await fetch(`/api/equipment/${id}`, {
-      method: 'PUT',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(body)
-    });
-    showToast('予約を更新しました', 'success');
-  } else {
-    // 新規（POST）重複チェックなし
-    await fetch('/api/equipment', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(body)
-    });
-    showToast('予約しました', 'success');
-  }
-  closeModal('equipModal');
-  loadEquipment();
+async function saveEquipment(){
+  const id=document.getElementById('eq_id').value;
+  const co=document.getElementById('eq_company').value;
+  if(!co){showToast('協力会社は必須です','error');return;}
+  const body={date:document.getElementById('equipDate').value,equipment:document.getElementById('eq_equipment').value,company:co,time_start:document.getElementById('eq_start').value,time_end:document.getElementById('eq_end').value,purpose:document.getElementById('eq_purpose').value};
+  if(id){await fetch(`/api/equipment/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});showToast('更新しました','success');}
+  else{await fetch('/api/equipment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});showToast('予約しました','success');}
+  closeModal('equipModal');loadEquipment();
 }
-}
-
-function deleteEquip(id, name) {
-  showConfirm(`「${name}」の予約を削除しますか？`, async () => {
-    await fetch(`/api/equipment/${id}`, {method:'DELETE'});
-    loadEquipment();
-    showToast('削除しました', 'info');
-  });
-}
+function deleteEquip(id,name){showConfirm(`「${name}」の予約を削除しますか？`,async()=>{await fetch(`/api/equipment/${id}`,{method:'DELETE'});loadEquipment();showToast('削除しました','info');});}
 
 // ================================================================
 //  帳票
 // ================================================================
-async function generateReport(type) {
-  const res = await fetch('/api/dashboard');
-  const d   = await res.json();
-  const dt  = new Date().toLocaleDateString('ja-JP');
-  const titles = {daily:'現場日報', instruction:'作業指示書', safety:'安全指示書'};
-  const preview = document.getElementById('reportPreview');
-  preview.style.display = 'block';
-  preview.innerHTML = `
-    <div class="report-doc">
-      <div class="report-doc-header"><h2>${titles[type]}</h2><p>作成日：${dt}</p></div>
-      <table class="report-table">
-        <tr><th>本日入場者数</th><td>${d.today_workers}名</td></tr>
-        <tr><th>作業予定件数</th><td>${d.today_schedules}件</td></tr>
-        <tr><th>未承認KY</th><td>${d.pending_ky}件</td></tr>
-      </table>
-      ${d.recent_schedules.map(s=>`<div class="report-row"><b>${s.company}</b>：${s.work_content} ${s.workers_count}名</div>`).join('')}
-      <div style="margin-top:24px;text-align:right">
-        <button class="btn btn-primary" onclick="window.print()"><i class="fa-solid fa-print"></i> 印刷</button>
-      </div>
-    </div>`;
+async function generateReport(type){
+  const res=await fetch('/api/dashboard');const d=await res.json();
+  const dt=new Date().toLocaleDateString('ja-JP');
+  const titles={daily:'現場日報',instruction:'作業指示書',safety:'安全指示書'};
+  const preview=document.getElementById('reportPreview');preview.style.display='block';
+  preview.innerHTML=`<div class="report-doc"><div class="report-doc-header"><h2>${titles[type]}</h2><p>作成日：${dt}</p></div><table class="report-table"><tr><th>本日入場者数</th><td>${d.today_workers}名</td></tr><tr><th>作業予定件数</th><td>${d.today_schedules}件</td></tr><tr><th>未承認KY</th><td>${d.pending_ky}件</td></tr></table>${d.recent_schedules.map(s=>`<div class="report-row"><b>${s.company}</b>：${s.work_content} ${s.workers_count}名</div>`).join('')}<div style="margin-top:24px;text-align:right"><button class="btn btn-primary" onclick="window.print()"><i class="fa-solid fa-print"></i> 印刷</button></div></div>`;
   preview.scrollIntoView({behavior:'smooth'});
 }
 
-// ================================================================
-//  API: 搬出入 PUT（編集）対応チェック
-// ================================================================
-// app.py 側に PUT /api/equipment/<eid> がなければ追加が必要
-
-// 初期ロード
+initCal();
 loadSchedules();
 </script>
-
-<style>
-.action-cell { white-space:nowrap; }
-.btn-icon.blue { color:#1E88E5; }
-.btn-icon.green { color:#43A047; }
-
-/* タイムラインバー */
-.tl-bar-wrap {
-  position: absolute;
-  top: 4px;
-  height: calc(100% - 8px);
-  min-width: 4px;
-}
-.tl-bar-wrap:hover .tl-bar-actions { display: flex; }
-.tl-bar {
-  width: 100%;
-  height: 100%;
-  border-radius: 4px;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  padding: 2px 6px;
-  box-sizing: border-box;
-  overflow: hidden;
-  cursor: pointer;
-  color: #fff;
-  font-size: 0.75rem;
-  line-height: 1.3;
-}
-.tl-bar-label { font-weight: bold; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.tl-bar-time  { font-size: 0.68rem; opacity: 0.85; }
-.tl-bar-actions {
-  display: none;
-  position: absolute;
-  top: -28px;
-  left: 0;
-  gap: 2px;
-  background: rgba(0,0,0,0.75);
-  border-radius: 4px;
-  padding: 2px 4px;
-  z-index: 10;
-  white-space: nowrap;
-}
-.tl-edit-btn, .tl-del-btn {
-  background: none;
-  border: none;
-  cursor: pointer;
-  font-size: 0.85rem;
-  padding: 2px 4px;
-  border-radius: 3px;
-}
-.tl-edit-btn:hover { background: rgba(255,255,255,0.2); }
-.tl-del-btn:hover  { background: rgba(255,0,0,0.3); }
-</style>
 {% endblock %}

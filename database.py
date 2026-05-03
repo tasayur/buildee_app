@@ -29,6 +29,7 @@ CREATE TABLE IF NOT EXISTS companies (
 CREATE TABLE IF NOT EXISTS work_schedules (
     id            TEXT PRIMARY KEY,
     date          TEXT NOT NULL,
+    date_end      TEXT,
     company       TEXT NOT NULL,
     work_content  TEXT NOT NULL,
     location      TEXT,
@@ -37,6 +38,10 @@ CREATE TABLE IF NOT EXISTS work_schedules (
     time_end      TEXT,
     note          TEXT,
     status        TEXT DEFAULT 'scheduled',
+    floor         TEXT,
+    map_x         REAL,
+    map_y         REAL,
+    color         TEXT,
     created_at    TEXT DEFAULT (datetime('now','localtime'))
 );
 CREATE INDEX IF NOT EXISTS idx_ws_date ON work_schedules(date);
@@ -138,18 +143,22 @@ def init_db():
 
 def _migrate_columns(conn):
     """既存DBに新カラムを追加（冪等）"""
-    try:
-        conn.execute("ALTER TABLE workers ADD COLUMN qr_token TEXT UNIQUE")
-    except Exception:
-        pass
-    try:
-        conn.execute("ALTER TABLE attendance ADD COLUMN method TEXT DEFAULT 'manual'")
-    except Exception:
-        pass
-    try:
-        conn.execute("CREATE INDEX IF NOT EXISTS idx_workers_qr ON workers(qr_token)")
-    except Exception:
-        pass
+    migrations = [
+        "ALTER TABLE workers ADD COLUMN qr_token TEXT UNIQUE",
+        "ALTER TABLE attendance ADD COLUMN method TEXT DEFAULT 'manual'",
+        "CREATE INDEX IF NOT EXISTS idx_workers_qr ON workers(qr_token)",
+        "ALTER TABLE work_schedules ADD COLUMN date_end TEXT",
+        "ALTER TABLE work_schedules ADD COLUMN floor TEXT",
+        "ALTER TABLE work_schedules ADD COLUMN map_x REAL",
+        "ALTER TABLE work_schedules ADD COLUMN map_y REAL",
+        "ALTER TABLE work_schedules ADD COLUMN color TEXT",
+    ]
+    for sql in migrations:
+        try:
+            conn.execute(sql)
+        except Exception:
+            pass
+
 
 def _seed_companies(conn):
     defaults = [
@@ -188,30 +197,57 @@ def add_company(id_, name, type_):
 def get_schedules(filter_date=None):
     with get_conn() as conn:
         if filter_date:
-            rows = conn.execute("SELECT * FROM work_schedules WHERE date=? ORDER BY time_start", (filter_date,)).fetchall()
+            # date_end がある場合は期間内も含む
+            rows = conn.execute("""
+                SELECT * FROM work_schedules
+                WHERE date <= ? AND (date_end IS NULL OR date_end >= ?)
+                ORDER BY time_start
+            """, (filter_date, filter_date)).fetchall()
         else:
-            rows = conn.execute("SELECT * FROM work_schedules ORDER BY date DESC, time_start").fetchall()
+            rows = conn.execute(
+                "SELECT * FROM work_schedules ORDER BY date DESC, time_start"
+            ).fetchall()
         return rows_to_list(rows)
+
+def get_schedules_by_floor(floor):
+    """配置図用：フロア指定で有効な作業予定を取得"""
+    today = date.today().isoformat()
+    with get_conn() as conn:
+        rows = conn.execute("""
+            SELECT * FROM work_schedules
+            WHERE floor=? AND map_x IS NOT NULL
+              AND date <= ? AND (date_end IS NULL OR date_end >= ?)
+            ORDER BY company
+        """, (floor, today, today)).fetchall()
+    return rows_to_list(rows)
 
 def add_schedule(s):
     with get_conn() as conn:
         conn.execute("""
             INSERT INTO work_schedules
-                (id,date,company,work_content,location,workers_count,time_start,time_end,note,status)
-            VALUES (?,?,?,?,?,?,?,?,?,?)
-        """, (s['id'], s['date'], s['company'], s['work_content'],
+              (id,date,date_end,company,work_content,location,
+               workers_count,time_start,time_end,note,status,
+               floor,map_x,map_y,color)
+            VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+        """, (s['id'], s['date'], s.get('date_end'),
+              s['company'], s['work_content'],
               s.get('location'), s.get('workers_count', 1),
               s.get('time_start'), s.get('time_end'),
-              s.get('note'), s.get('status', '予定')))
+              s.get('note'), s.get('status', '予定'),
+              s.get('floor'), s.get('map_x'), s.get('map_y'),
+              s.get('color')))
 
 def update_schedule(sid, fields):
-    allowed = {'work_content','location','workers_count','time_start','time_end','note','status'}
+    allowed = {'work_content','location','workers_count','time_start','time_end',
+               'note','status','date','date_end','floor','map_x','map_y','color','company'}
     updates = {k: v for k, v in fields.items() if k in allowed}
     if not updates:
         return False
     clause = ', '.join(f"{k}=?" for k in updates)
     with get_conn() as conn:
-        cur = conn.execute(f"UPDATE work_schedules SET {clause} WHERE id=?", list(updates.values()) + [sid])
+        cur = conn.execute(
+            f"UPDATE work_schedules SET {clause} WHERE id=?",
+            list(updates.values()) + [sid])
         return cur.rowcount > 0
 
 def delete_schedule(sid):
