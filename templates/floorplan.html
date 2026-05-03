@@ -1,0 +1,132 @@
+{% extends "base.html" %}
+{% block title %}配置図 - BuildeeMgr{% endblock %}
+
+{% block content %}
+<div class="page-header">
+  <h2>📐 配置図</h2>
+</div>
+
+<!-- フロア切替タブ -->
+<div class="floorplan-tabs">
+  <button class="tab-btn active" onclick="showFloor('1f')">1F</button>
+  <button class="tab-btn"        onclick="showFloor('2f')">2F</button>
+</div>
+
+<!-- 1F図面 -->
+<div id="floor-1f" class="floor-panel active">
+  <div class="floorplan-container">
+    <img src="{{ url_for('static', filename='floorplans/floorplan_1f.png') }}"
+         alt="1F 配置図"
+         class="floorplan-img"
+         id="img-1f">
+  </div>
+  <div class="floorplan-controls">
+    <button onclick="zoom('img-1f', 1.2)">🔍＋</button>
+    <button onclick="zoom('img-1f', 0.8)">🔍－</button>
+    <button onclick="resetZoom('img-1f')">リセット</button>
+    <a href="{{ url_for('static', filename='floorplans/floorplan_1f.png') }}"
+       download="1F_配置図.png" class="btn-download">⬇ ダウンロード</a>
+  </div>
+</div>
+
+<!-- 2F図面 -->
+<div id="floor-2f" class="floor-panel" style="display:none;">
+  <div class="floorplan-container">
+    <img src="{{ url_for('static', filename='floorplans/floorplan_2f.png') }}"
+         alt="2F 配置図"
+         class="floorplan-img"
+         id="img-2f">
+  </div>
+  <div class="floorplan-controls">
+    <button onclick="zoom('img-2f', 1.2)">🔍＋</button>
+    <button onclick="zoom('img-2f', 0.8)">🔍－</button>
+    <button onclick="resetZoom('img-2f')">リセット</button>
+    <a href="{{ url_for('static', filename='floorplans/floorplan_2f.png') }}"
+       download="2F_配置図.png" class="btn-download">⬇ ダウンロード</a>
+  </div>
+</div>
+
+<style>
+.page-header { margin-bottom: 1rem; }
+.floorplan-tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+.tab-btn {
+  padding: 0.5rem 2rem;
+  font-size: 1rem;
+  font-weight: bold;
+  border: 2px solid #333;
+  background: #fff;
+  cursor: pointer;
+  border-radius: 6px;
+}
+.tab-btn.active {
+  background: #333;
+  color: #fff;
+}
+.floorplan-container {
+  overflow: auto;
+  border: 1px solid #ccc;
+  border-radius: 8px;
+  background: #f9f9f9;
+  max-height: 70vh;
+  text-align: center;
+  padding: 1rem;
+}
+.floorplan-img {
+  max-width: 100%;
+  transition: transform 0.2s;
+  transform-origin: top left;
+  cursor: grab;
+}
+.floorplan-controls {
+  margin-top: 0.75rem;
+  display: flex;
+  gap: 0.5rem;
+  align-items: center;
+}
+.floorplan-controls button {
+  padding: 0.4rem 1rem;
+  border: 1px solid #999;
+  border-radius: 4px;
+  background: #fff;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+.floorplan-controls button:hover { background: #eee; }
+.btn-download {
+  margin-left: auto;
+  padding: 0.4rem 1rem;
+  background: #333;
+  color: #fff;
+  border-radius: 4px;
+  text-decoration: none;
+  font-size: 0.9rem;
+}
+.btn-download:hover { background: #555; }
+</style>
+
+<script>
+const scales = { 'img-1f': 1.0, 'img-2f': 1.0 };
+
+function showFloor(floor) {
+  document.querySelectorAll('.floor-panel').forEach(p => p.style.display = 'none');
+  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('floor-' + floor).style.display = 'block';
+  event.target.classList.add('active');
+}
+
+function zoom(imgId, factor) {
+  scales[imgId] = (scales[imgId] || 1.0) * factor;
+  scales[imgId] = Math.min(Math.max(scales[imgId], 0.3), 5.0);
+  document.getElementById(imgId).style.transform = `scale(${scales[imgId]})`;
+}
+
+function resetZoom(imgId) {
+  scales[imgId] = 1.0;
+  document.getElementById(imgId).style.transform = 'scale(1)';
+}
+</script>
+{% endblock %}

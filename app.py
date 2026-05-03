@@ -338,6 +338,12 @@ def coordination():
     return render_template('coordination.html',
                            companies=db.get_companies(), today=date.today().isoformat())
 
+
+@app.route('/floorplan')
+@login_required
+def floorplan():
+    return render_template('floorplan.html')
+
 @app.route('/ky')
 @login_required
 def ky():
