@@ -478,10 +478,8 @@ def api_get_equip(): return jsonify(db.get_equipment(request.args.get('date')))
 @write_required
 def api_add_equip():
     r=request.json
-    if db.check_equipment_conflict(r['equipment'],r['date'],r['time_start'],r['time_end']):
-        return jsonify({'status':'conflict',
-            'message':f"{r['equipment']}\u306f\u6307\u5b9a\u6642\u9593\u5e2f\u306b\u65e2\u306b\u4e88\u7d04\u304c\u3042\u308a\u307e\u3059"}),409
     r['id']=str(uuid.uuid4()); db.add_equipment(r)
+    return jsonify({'status':'ok','id':r['id']}),201
     return jsonify({'status':'ok','id':r['id']}),201
 
 @app.route('/api/equipment/<eid>', methods=['PUT'])
