@@ -167,11 +167,30 @@
           <label>設備名 *</label>
           <select id="eq_equipment">
             <option>高所作業車</option>
-            <option>移動式クレーン</option>
-            <option>工事用エレベーター</option>
-            <option>ゲート（北）</option>
-            <option>ゲート（南）</option>
-            <option>荷物用エレベーター</option>
+            <option>Dock N12</option>
+            <option>Dock N11</option>
+            <option>Dock N10</option>
+            <option>Dock N9</option>
+            <option>Dock N8</option>
+            <option>Dock N7</option>
+            <option>Dock N6</option>
+            <option>Dock N5</option>
+            <option>Dock N4</option>
+            <option>Dock N3</option>
+            <option>Dock N2</option>
+            <option>Dock N1</option>
+            <option>Dock S8</option>
+            <option>Dock S7</option>
+            <option>Dock S6</option>
+            <option>Dock S5</option>
+            <option>Dock S4</option>
+            <option>Dock S3</option>
+            <option>Dock S2</option>
+            <option>Dock S1</option>
+            <option>EV1</option>
+            <option>EV2</option>
+            <option>EV3</option>
+            <option>EV4</option>
           </select>
         </div>
         <div class="form-group full">
@@ -428,8 +447,14 @@ function deleteSchedule(id, name) {
 // ================================================================
 //  搬出入予約
 // ================================================================
-const EQUIPS = ['高所作業車','移動式クレーン','工事用エレベーター','ゲート（北）','ゲート（南）','荷物用エレベーター'];
-const ECOLS  = ['#3b82f6','#22c55e','#f97316','#a855f7','#ec4899','#14b8a6'];
+const EQUIPS = [
+  '高所作業車',
+  'Dock N12','Dock N11','Dock N10','Dock N9','Dock N8','Dock N7',
+  'Dock N6','Dock N5','Dock N4','Dock N3','Dock N2','Dock N1',
+  'Dock S8','Dock S7','Dock S6','Dock S5','Dock S4','Dock S3','Dock S2','Dock S1',
+  'EV1','EV2','EV3','EV4'
+];
+const ECOLS = ['#3b82f6','#22c55e','#f97316','#a855f7','#ec4899','#14b8a6','#ef4444','#84cc16','#06b6d4','#f59e0b'];
 
 async function loadEquipment() {
   const date = document.getElementById('equipDate').value;
