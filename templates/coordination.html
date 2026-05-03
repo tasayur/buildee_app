@@ -5,8 +5,8 @@
 {% block content %}
 <div class="tab-bar">
   <button class="tab-btn active" onclick="switchTab('schedule')">作業予定</button>
-  <button class="tab-btn" onclick="switchTab('equipment')">揚重機予約</button>
-  <button class="tab-btn" onclick="switchTab('layout')">配置図</button>
+  <button class="tab-btn" onclick="switchTab('equipment')">搬出入予約</button>
+  <button class="tab-btn" onclick="goFloorplan()">配置図</button>
   <button class="tab-btn" onclick="switchTab('report')">帳票出力</button>
 </div>
 
@@ -43,7 +43,7 @@
   </div>
 </div>
 
-<!-- 揚重機予約 Tab -->
+<!-- 搬出入予約 Tab -->
 <div id="tab-equipment" class="tab-content">
   <div class="section-toolbar">
     <div class="date-picker-wrap">
@@ -69,44 +69,6 @@
   </div>
   <!-- Mobile -->
   <div class="card-list" id="equipCardList"></div>
-</div>
-
-<!-- 配置図 Tab -->
-<div id="tab-layout" class="tab-content">
-  <div class="section-toolbar">
-    <span class="text-muted" style="font-size:12px">ドラッグで配置 / ダブルタップで削除</span>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-secondary btn-sm" onclick="clearLayout()"><i class="fa-solid fa-trash"></i></button>
-      <button class="btn btn-primary btn-sm" onclick="saveLayout()"><i class="fa-solid fa-save"></i> 保存</button>
-    </div>
-  </div>
-  <div class="layout-container">
-    <div class="layout-toolbar">
-      <div class="layout-tool" draggable="true" data-type="crane" ondragstart="dragStart(event)">
-        <i class="fa-solid fa-truck-pickup text-blue"></i><span>クレーン</span>
-      </div>
-      <div class="layout-tool" draggable="true" data-type="worker" ondragstart="dragStart(event)">
-        <i class="fa-solid fa-person-digging text-orange"></i><span>作業員</span>
-      </div>
-      <div class="layout-tool" draggable="true" data-type="danger" ondragstart="dragStart(event)">
-        <i class="fa-solid fa-circle-radiation text-red"></i><span>危険</span>
-      </div>
-      <div class="layout-tool" draggable="true" data-type="material" ondragstart="dragStart(event)">
-        <i class="fa-solid fa-boxes-stacked text-green"></i><span>資材</span>
-      </div>
-      <div class="layout-tool" draggable="true" data-type="gate" ondragstart="dragStart(event)">
-        <i class="fa-solid fa-door-open text-purple"></i><span>ゲート</span>
-      </div>
-    </div>
-    <div class="layout-canvas" id="layoutCanvas"
-         ondragover="event.preventDefault()" ondrop="dropOnCanvas(event)">
-      <div class="canvas-grid-bg"></div>
-      <div class="canvas-placeholder">
-        <i class="fa-solid fa-map"></i>
-        <p>アイコンをドラッグして配置</p>
-      </div>
-    </div>
-  </div>
 </div>
 
 <!-- 帳票出力 Tab -->
@@ -182,11 +144,11 @@
   </div>
 </div>
 
-<!-- 揚重機予約モーダル -->
+<!-- 搬出入予約モーダル -->
 <div id="equipModal" class="modal">
   <div class="modal-box">
     <div class="modal-header">
-      <h3><i class="fa-solid fa-truck-pickup"></i> 揚重機・重機予約</h3>
+      <h3><i class="fa-solid fa-truck-ramp-box"></i> 搬出入予約</h3>
       <button onclick="closeModal('equipModal')">✕</button>
     </div>
     <div class="modal-body">
@@ -194,9 +156,12 @@
         <div class="form-group full">
           <label>設備名 *</label>
           <select id="eq_equipment">
-            <option>タワークレーン</option><option>移動式クレーン</option>
-            <option>工事用エレベーター</option><option>ゲート（北）</option>
-            <option>ゲート（南）</option><option>高所作業車</option>
+            <option>高所作業車</option>
+            <option>移動式クレーン</option>
+            <option>工事用エレベーター</option>
+            <option>ゲート（北）</option>
+            <option>ゲート（南）</option>
+            <option>荷物用エレベーター</option>
           </select>
         </div>
         <div class="form-group full">
@@ -215,7 +180,7 @@
         </div>
         <div class="form-group full">
           <label>使用目的</label>
-          <input type="text" id="eq_purpose" placeholder="例：鉄筋搬入">
+          <input type="text" id="eq_purpose" placeholder="例：資材搬入">
         </div>
       </div>
     </div>
@@ -230,8 +195,12 @@
 {% block scripts %}
 <script>
 const today = '{{ today }}';
-let dragType = null;
 let currentTab = 'schedule';
+
+// 配置図タブ → 新ページへ
+function goFloorplan() {
+  window.location.href = '/floorplan';
+}
 
 // FAB action
 window.fabAction = function() {
@@ -328,8 +297,8 @@ async function deleteSchedule(id) {
   loadSchedules(); showToast('削除しました','info');
 }
 
-// ===== 揚重機 =====
-const EQUIPS = ['タワークレーン','移動式クレーン','工事用エレベーター','ゲート（北）','ゲート（南）','高所作業車'];
+// ===== 搬出入予約 =====
+const EQUIPS = ['高所作業車','移動式クレーン','工事用エレベーター','ゲート（北）','ゲート（南）','荷物用エレベーター'];
 const ECOLS  = ['#3b82f6','#22c55e','#f97316','#a855f7','#ec4899','#14b8a6'];
 
 async function loadEquipment() {
@@ -371,14 +340,19 @@ async function loadEquipment() {
     return `<div class="timeline-row"><div class="tl-label">${eq}</div><div class="tl-track">${bars}</div></div>`;
   }).join('');
 }
+
 function timeToPercent(t){const[h,m]=t.split(':').map(Number);return((h-7)*60+m)/(12*60)*100;}
 function openEquipModal(){document.getElementById('equipModal').classList.add('open');}
+
 async function saveEquipment(){
   const date=document.getElementById('equipDate').value;
   const eq=document.getElementById('eq_equipment').value;
   const co=document.getElementById('eq_company').value;
   if(!co){showToast('協力会社は必須です','error');return;}
-  const body={date,equipment:eq,company:co,time_start:document.getElementById('eq_start').value,time_end:document.getElementById('eq_end').value,purpose:document.getElementById('eq_purpose').value};
+  const body={date,equipment:eq,company:co,
+    time_start:document.getElementById('eq_start').value,
+    time_end:document.getElementById('eq_end').value,
+    purpose:document.getElementById('eq_purpose').value};
   const res=await fetch('/api/equipment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(res.status===409){const err=await res.json();showToast(err.message,'error');return;}
   closeModal('equipModal');loadEquipment();showToast('予約しました','success');
@@ -388,30 +362,6 @@ async function deleteEquip(id){
   await fetch(`/api/equipment/${id}`,{method:'DELETE'});
   loadEquipment();showToast('削除しました','info');
 }
-
-// ===== 配置図 =====
-function dragStart(e){dragType=e.target.closest('[data-type]').dataset.type;}
-function dropOnCanvas(e){
-  e.preventDefault();
-  const canvas=document.getElementById('layoutCanvas');
-  const rect=canvas.getBoundingClientRect();
-  const x=e.clientX-rect.left-20, y=e.clientY-rect.top-20;
-  const icons={crane:'fa-truck-pickup',worker:'fa-person-digging',danger:'fa-circle-radiation',material:'fa-boxes-stacked',gate:'fa-door-open'};
-  const colors={crane:'text-blue',worker:'text-orange',danger:'text-red',material:'text-green',gate:'text-purple'};
-  const labels={crane:'クレーン',worker:'作業員',danger:'危険',material:'資材',gate:'ゲート'};
-  const el=document.createElement('div');
-  el.className='canvas-icon';el.style.left=x+'px';el.style.top=y+'px';
-  el.innerHTML=`<i class="fa-solid ${icons[dragType]} ${colors[dragType]}"></i><span>${labels[dragType]}</span>`;
-  el.ondblclick=()=>el.remove();makeDraggable(el);
-  const ph=canvas.querySelector('.canvas-placeholder');if(ph)ph.style.display='none';
-  canvas.appendChild(el);
-}
-function makeDraggable(el){
-  let ox,oy;
-  el.onmousedown=(e)=>{ox=e.clientX-el.offsetLeft;oy=e.clientY-el.offsetTop;document.onmousemove=(e2)=>{el.style.left=(e2.clientX-ox)+'px';el.style.top=(e2.clientY-oy)+'px';};document.onmouseup=()=>{document.onmousemove=null;};};
-}
-function clearLayout(){document.getElementById('layoutCanvas').querySelectorAll('.canvas-icon').forEach(e=>e.remove());const ph=document.querySelector('.canvas-placeholder');if(ph)ph.style.display='flex';}
-function saveLayout(){showToast('配置図を保存しました','success');}
 
 // ===== 帳票 =====
 async function generateReport(type){
