@@ -131,7 +131,7 @@
           </div>
           <div class="form-group">
             <label>開始時刻</label>
-            <input type="time" id="sc_start" value="08:00">
+            <input type="time" id="sc_start" value="06:00">
           </div>
           <div class="form-group">
             <label>終了時刻</label>
@@ -644,7 +644,7 @@ function openScheduleModal() {
   document.getElementById('sc_content').value = '';
   document.getElementById('sc_location').value= '';
   document.getElementById('sc_workers').value = '1';
-  document.getElementById('sc_start').value   = '08:00';
+  document.getElementById('sc_start').value   = '06:00';
   document.getElementById('sc_end').value     = '17:00';
   document.getElementById('sc_status').value  = '予定';
   document.getElementById('sc_note').value    = '';
@@ -673,7 +673,7 @@ function editSchedule(s) {
   document.getElementById('sc_content').value  = s.work_content;
   document.getElementById('sc_location').value = s.location  || '';
   document.getElementById('sc_workers').value  = s.workers_count || 1;
-  document.getElementById('sc_start').value    = s.time_start|| '08:00';
+  document.getElementById('sc_start').value    = s.time_start|| '06:00';
   document.getElementById('sc_end').value      = s.time_end  || '17:00';
   document.getElementById('sc_status').value   = s.status    || '予定';
   document.getElementById('sc_note').value     = s.note      || '';
