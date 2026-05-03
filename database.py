@@ -136,16 +136,21 @@ def _migrate_columns(conn):
 
 def _seed_companies(conn):
     defaults = [
-        ('1', '\u5c71\u7530\u5efa\u8a2d\u682a\u5f0f\u4f1a\u793e', '\u9435\u7b4b'),
-        ('2', '\u7530\u4e2d\u5de5\u696d\u682a\u5f0f\u4f1a\u793e', '\u578b\u679a'),
-        ('3', '\u9234\u6728\u8a2d\u5099\u682a\u5f0f\u4f1a\u793e', '\u96fb\u6c17'),
-        ('4', '\u4f50\u85e4\u571f\u6728\u682a\u5f0f\u4f1a\u793e', '\u571f\u5de5'),
+        ('1',  'OKR',      'その他'),
+        ('2',  'Ops',      'その他'),
+        ('3',  'TKSL',     'その他'),
+        ('4',  'WHS',      'その他'),
+        ('5',  'ザイマックス', 'その他'),
+        ('6',  'その他',    'その他'),
+        ('7',  'ユアサ',    'その他'),
+        ('8',  'リョウセイ', 'その他'),
+        ('9',  '丸和工業',  'その他'),
+        ('10', '日本ビルコン','その他'),
     ]
     conn.executemany(
         "INSERT OR IGNORE INTO companies(id,name,type) VALUES (?,?,?)",
         defaults
     )
-
 def rows_to_list(rows):
     return [dict(r) for r in rows]
 
