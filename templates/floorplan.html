@@ -4,525 +4,270 @@
 {% block content %}
 <div class="fp-header">
   <h2>📐 配置図</h2>
-  <span id="sync-status" class="sync-badge sync-ok">✅ 同期済み</span>
+  <span id="fp-sync" class="sync-badge sync-ok">✅ 同期済み</span>
 </div>
 
 <!-- フロア切替 -->
-<div class="floorplan-tabs">
-  <button class="tab-btn active" onclick="showFloor('1f',this)">1F</button>
-  <button class="tab-btn"       onclick="showFloor('2f',this)">2F</button>
+<div class="fp-floor-tabs">
+  <button class="fp-ftab active" id="fptab-1f" onclick="switchFloor('1f',this)">1F</button>
+  <button class="fp-ftab"        id="fptab-2f" onclick="switchFloor('2f',this)">2F</button>
 </div>
 
 <!-- ツールバー -->
 <div class="fp-toolbar">
-  <div class="tool-group">
-    <button class="tool-btn active" id="tool-select" onclick="setTool('select',this)">🖱 選択</button>
-    <button class="tool-btn" id="tool-pin"   onclick="setTool('pin',this)">📍 ピン</button>
-    <button class="tool-btn" id="tool-memo"  onclick="setTool('memo',this)">📝 メモ</button>
-    <button class="tool-btn" id="tool-area"  onclick="setTool('area',this)">🟥 エリア</button>
+  <div class="tb-group">
+    <button class="tb-tool active" id="fpt-select"  onclick="setTool('select',this)"  title="選択・移動">🖱 選択</button>
+    <button class="tb-tool"        id="fpt-pin"     onclick="setTool('pin',this)"     title="ピン">📍 ピン</button>
+    <button class="tb-tool"        id="fpt-range"   onclick="setTool('range',this)"   title="作業範囲">🟦 作業範囲</button>
+    <button class="tb-tool"        id="fpt-area"    onclick="setTool('area',this)"    title="エリア">🟥 エリア</button>
+    <button class="tb-tool"        id="fpt-material" onclick="setTool('material',this)" title="資材">📦 資材</button>
+    <button class="tb-tool"        id="fpt-aerial"  onclick="setTool('aerial',this)"  title="高所作業">🏗️ 高所</button>
+    <button class="tb-tool"        id="fpt-fire"    onclick="setTool('fire',this)"    title="火気作業">🔥 火気</button>
+    <button class="tb-tool"        id="fpt-comment" onclick="setTool('comment',this)" title="コメント">💬 メモ</button>
   </div>
-  <div class="tool-group">
-    <select id="marker-color" title="色選択">
-      <option value="#e53935">🔴 赤</option>
-      <option value="#FB8C00">🟠 オレンジ</option>
-      <option value="#F9A825">🟡 黄</option>
-      <option value="#43A047">🟢 緑</option>
-      <option value="#1E88E5">🔵 青</option>
-      <option value="#8E24AA">🟣 紫</option>
-    </select>
+  <div class="tb-group">
+    <button class="tb-ctrl" onclick="engine.zoom(1.3)">🔍＋</button>
+    <button class="tb-ctrl" onclick="engine.zoom(0.77)">🔍－</button>
+    <button class="tb-ctrl" onclick="engine.zoomReset()">↺ リセット</button>
   </div>
-  <div class="tool-group">
-    <button class="ctrl-btn" onclick="zoomActive(1.25)">🔍＋</button>
-    <button class="ctrl-btn" onclick="zoomActive(0.8)">🔍－</button>
-    <button class="ctrl-btn" onclick="resetActive()">↺ リセット</button>
-  </div>
-  <!-- 作業予定レイヤー切替 -->
-  <div class="tool-group">
-    <label class="layer-toggle">
-      <input type="checkbox" id="toggleSchedules" checked onchange="toggleScheduleLayer()">
-      <span>📋 作業予定を表示</span>
+  <div class="tb-group">
+    <label class="tb-toggle">
+      <input type="checkbox" id="togSchedules" checked onchange="toggleSchedules()">
+      <span>📋 作業予定</span>
     </label>
   </div>
-  <div class="tool-group ml-auto">
-    <button class="ctrl-btn" onclick="reloadAll()">🔄 更新</button>
-    <button class="ctrl-btn danger" onclick="clearFloor()">🗑 ピン全消去</button>
-    <button class="ctrl-btn success" onclick="downloadWithMarkers()">📸 画像保存</button>
+  <div class="tb-group" style="margin-left:auto;">
+    <button class="tb-ctrl" onclick="reloadAll()">🔄 更新</button>
+    <button class="tb-ctrl danger" onclick="engine.clearAll()">🗑 全消去</button>
+    <button class="tb-ctrl success" onclick="downloadMap()">📸 保存</button>
   </div>
 </div>
 
 <!-- 1F -->
-<div id="floor-1f" class="floor-panel active">
-  <div class="fp-wrap" id="wrap-1f">
-    <div class="fp-canvas" id="canvas-1f">
-      <img src="{{ url_for('static', filename='floorplans/floorplan_1f.png') }}"
-           alt="1F 配置図" class="floorplan-img" id="img-1f" draggable="false">
-      <div class="marker-layer" id="markers-1f"></div>
-      <!-- 作業予定レイヤー -->
-      <div class="schedule-layer" id="schedules-1f"></div>
+<div id="fp-floor-1f" class="fp-panel active">
+  <div class="fp-wrap" id="fpWrap1f">
+    <div id="fpCanvas1f" style="position:relative;display:inline-block;transform-origin:top left;transition:transform .15s;">
+      <img id="fpImg1f" src="{{ url_for('static', filename='floorplans/floorplan_1f.png') }}"
+           alt="1F" draggable="false" style="display:block;max-width:100%;">
+      <div id="fpSchedulePins1f" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
+      <div id="fpMarkerLayer1f" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
     </div>
   </div>
 </div>
 
 <!-- 2F -->
-<div id="floor-2f" class="floor-panel" style="display:none;">
-  <div class="fp-wrap" id="wrap-2f">
-    <div class="fp-canvas" id="canvas-2f">
-      <img src="{{ url_for('static', filename='floorplans/floorplan_2f.png') }}"
-           alt="2F 配置図" class="floorplan-img" id="img-2f" draggable="false">
-      <div class="marker-layer" id="markers-2f"></div>
-      <div class="schedule-layer" id="schedules-2f"></div>
+<div id="fp-floor-2f" class="fp-panel" style="display:none;">
+  <div class="fp-wrap" id="fpWrap2f">
+    <div id="fpCanvas2f" style="position:relative;display:inline-block;transform-origin:top left;transition:transform .15s;">
+      <img id="fpImg2f" src="{{ url_for('static', filename='floorplans/floorplan_2f.png') }}"
+           alt="2F" draggable="false" style="display:block;max-width:100%;">
+      <div id="fpSchedulePins2f" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
+      <div id="fpMarkerLayer2f" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
     </div>
   </div>
 </div>
 
-<!-- 凡例パネル -->
-<div id="legendPanel" class="legend-panel" style="display:none;">
-  <div class="legend-header">
-    📋 本日の作業予定
-    <button onclick="document.getElementById('legendPanel').style.display='none'">✕</button>
-  </div>
-  <div id="legendList" class="legend-list"></div>
-</div>
-
-<!-- メモ入力ダイアログ -->
-<div id="memo-dialog" class="dialog-overlay" style="display:none;">
-  <div class="dialog-box">
-    <h3 id="dialog-title">📝 メモを入力</h3>
-    <input type="text" id="memo-title-input" placeholder="タイトル" maxlength="30">
-    <textarea id="memo-body-input" placeholder="メモ内容" rows="4" maxlength="200"></textarea>
-    <div class="dialog-btns">
-      <button onclick="cancelMemo()">キャンセル</button>
-      <button class="btn-primary" onclick="confirmMemo()">追加</button>
-    </div>
-  </div>
-</div>
-
-<!-- マーカー詳細ポップアップ -->
-<div id="marker-popup" class="marker-popup" style="display:none;">
-  <div class="popup-header">
-    <span id="popup-title-text"></span>
-    <button onclick="closePopup()">✕</button>
-  </div>
-  <div id="popup-body-text" class="popup-body"></div>
-  <div id="popup-meta" class="popup-meta"></div>
-  <div class="popup-footer">
-    <button class="btn-danger-sm" id="popup-del-btn" onclick="deleteCurrentMarker()">🗑 削除</button>
-  </div>
-</div>
+<!-- 凡例 -->
+<div id="fpLegend" class="fp-legend"></div>
 
 <style>
-.fp-header { display:flex; align-items:center; gap:1rem; margin-bottom:.75rem; }
+.fp-header { display:flex; align-items:center; gap:.75rem; margin-bottom:.5rem; }
 .fp-header h2 { margin:0; }
-.sync-badge { font-size:.78rem; padding:.2rem .6rem; border-radius:12px; font-weight:bold; }
+.sync-badge { font-size:.75rem; padding:2px 8px; border-radius:10px; font-weight:bold; }
 .sync-ok   { background:#E8F5E9; color:#2E7D32; }
 .sync-busy { background:#FFF3E0; color:#E65100; }
-.sync-err  { background:#FFEBEE; color:#B71C1C; }
-
-.fp-toolbar { display:flex; flex-wrap:wrap; gap:.5rem; align-items:center;
-  background:#f5f5f5; border:1px solid #ddd; border-radius:8px;
-  padding:.5rem .75rem; margin-bottom:.75rem; }
-.tool-group { display:flex; gap:.4rem; align-items:center; }
-.ml-auto { margin-left:auto; }
-.tool-btn { padding:.35rem .8rem; border:2px solid #bbb; border-radius:6px;
-  background:#fff; cursor:pointer; font-size:.85rem; font-weight:bold; }
-.tool-btn.active { border-color:#1E88E5; background:#E3F2FD; color:#1E88E5; }
-.ctrl-btn { padding:.35rem .75rem; border:1px solid #bbb; border-radius:6px;
-  background:#fff; cursor:pointer; font-size:.85rem; }
-.ctrl-btn.danger  { border-color:#e53935; color:#e53935; }
-.ctrl-btn.success { border-color:#43A047; color:#43A047; }
-#marker-color { padding:.3rem .5rem; border:1px solid #bbb; border-radius:6px; font-size:.85rem; }
-.layer-toggle { display:flex; align-items:center; gap:6px; cursor:pointer; font-size:.85rem; font-weight:bold; }
-
-.floorplan-tabs { display:flex; gap:.5rem; margin-bottom:.75rem; }
-.tab-btn { padding:.5rem 2rem; font-size:1rem; font-weight:bold;
+.fp-floor-tabs { display:flex; gap:5px; margin-bottom:.5rem; }
+.fp-ftab { padding:.4rem 1.5rem; font-size:.95rem; font-weight:bold;
   border:2px solid #333; background:#fff; cursor:pointer; border-radius:6px; }
-.tab-btn.active { background:#333; color:#fff; }
-
+.fp-ftab.active { background:#333; color:#fff; }
+.fp-toolbar { display:flex; flex-wrap:wrap; gap:4px; align-items:center;
+  background:#f5f5f5; border:1px solid #ddd; border-radius:8px;
+  padding:.4rem .75rem; margin-bottom:.5rem; }
+.tb-group { display:flex; gap:3px; align-items:center; }
+.tb-group + .tb-group { border-left:1px solid #ddd; padding-left:5px; margin-left:2px; }
+.tb-tool { padding:.3rem .6rem; border:2px solid #ddd; border-radius:5px;
+  background:#fff; cursor:pointer; font-size:.8rem; font-weight:bold; transition:all .15s; }
+.tb-tool:hover { border-color:#1E88E5; }
+.tb-tool.active { border-color:#1E88E5; background:#E3F2FD; color:#1E88E5; }
+.tb-ctrl { padding:.3rem .7rem; border:1px solid #bbb; border-radius:5px;
+  background:#fff; cursor:pointer; font-size:.78rem; }
+.tb-ctrl.danger  { border-color:#e53935; color:#e53935; }
+.tb-ctrl.success { border-color:#43A047; color:#43A047; }
+.tb-toggle { display:flex; align-items:center; gap:5px; font-size:.8rem; cursor:pointer; font-weight:bold; }
+.fp-panel { }
 .fp-wrap { overflow:auto; border:1px solid #ccc; border-radius:8px;
-  background:#e8e8e8; height:65vh; position:relative; cursor:crosshair; }
-.fp-canvas { position:relative; display:inline-block; transform-origin:top left; transition:transform .15s; }
-.floorplan-img { display:block; max-width:100%; user-select:none; pointer-events:none; }
-.marker-layer   { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
-.schedule-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
-
-/* マーカー */
-.marker { position:absolute; pointer-events:all; cursor:pointer; }
-.marker:hover { filter:brightness(1.15) drop-shadow(0 2px 4px rgba(0,0,0,.4)); z-index:100; }
-.marker.dragging { cursor:grabbing; opacity:.75; z-index:200; transition:none; }
-.pin-marker { width:28px; height:28px; border-radius:50% 50% 50% 0;
-  transform:rotate(-45deg) translate(-50%,-50%);
-  border:3px solid rgba(0,0,0,.25); box-shadow:2px 2px 4px rgba(0,0,0,.3); }
-.pin-marker::after { content:''; width:10px; height:10px; background:rgba(255,255,255,.6);
-  border-radius:50%; position:absolute; top:4px; left:4px; }
-.memo-marker { background:#FFF9C4; border:2px solid; border-radius:4px;
-  padding:3px 7px; font-size:.75rem; font-weight:bold; max-width:120px;
-  white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
-  box-shadow:2px 2px 6px rgba(0,0,0,.2); transform:translate(-50%,-100%); }
-.area-marker { border:3px dashed; border-radius:4px; background:rgba(255,255,255,.1);
-  display:flex; align-items:flex-start; padding:4px 6px; font-size:.72rem; font-weight:bold;
-  box-sizing:border-box; min-width:60px; min-height:40px; }
-.area-drawing { position:absolute; border:3px dashed #e53935;
-  background:rgba(229,57,53,.08); pointer-events:none; z-index:200; }
-
-/* 作業予定ピン */
-.schedule-pin { position:absolute; pointer-events:all; cursor:pointer; z-index:50; }
-.sch-pin-dot { width:32px; height:32px; border-radius:50% 50% 50% 0;
-  transform:rotate(-45deg) translate(-50%,-50%);
-  border:3px solid rgba(255,255,255,.8); box-shadow:2px 2px 6px rgba(0,0,0,.4);
-  transition:filter .1s; }
-.schedule-pin:hover .sch-pin-dot { filter:brightness(1.2) drop-shadow(0 3px 6px rgba(0,0,0,.5)); }
-.sch-pin-label { position:absolute; left:16px; top:-28px; background:rgba(0,0,0,.75);
-  color:#fff; font-size:.7rem; padding:2px 6px; border-radius:4px;
-  white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .15s; }
-.schedule-pin:hover .sch-pin-label { opacity:1; }
-
-/* ポップアップ */
-.marker-popup { position:fixed; z-index:500; background:#fff; border:1px solid #ccc;
-  border-radius:8px; box-shadow:0 4px 20px rgba(0,0,0,.2); width:260px; font-size:.9rem; }
-.popup-header { display:flex; justify-content:space-between; align-items:center;
-  padding:.5rem .75rem; background:#333; color:#fff; border-radius:8px 8px 0 0; font-weight:bold; }
-.popup-header button { background:none; border:none; color:#fff; cursor:pointer; font-size:1rem; }
-.popup-body { padding:.75rem; white-space:pre-wrap; color:#333; min-height:30px; }
-.popup-meta { padding:0 .75rem .5rem; font-size:.72rem; color:#999; }
-.popup-footer { padding:.5rem .75rem; border-top:1px solid #eee; text-align:right; }
-.btn-danger-sm { padding:.3rem .75rem; background:#e53935; color:#fff;
-  border:none; border-radius:4px; cursor:pointer; font-size:.8rem; }
-
-/* ダイアログ */
-.dialog-overlay { position:fixed; inset:0; background:rgba(0,0,0,.5);
-  z-index:600; display:flex; align-items:center; justify-content:center; }
-.dialog-box { background:#fff; border-radius:10px; padding:1.5rem; width:340px;
-  box-shadow:0 8px 32px rgba(0,0,0,.25); }
-.dialog-box h3 { margin:0 0 1rem; }
-.dialog-box input, .dialog-box textarea { width:100%; border:1px solid #ccc;
-  border-radius:6px; padding:.5rem; font-size:.9rem; margin-bottom:.75rem;
-  box-sizing:border-box; font-family:inherit; }
-.dialog-btns { display:flex; gap:.5rem; justify-content:flex-end; }
-.dialog-btns button { padding:.4rem 1.2rem; border-radius:6px; border:1px solid #bbb;
-  cursor:pointer; font-size:.9rem; background:#fff; }
-.btn-primary { background:#1E88E5!important; color:#fff!important; border-color:#1E88E5!important; }
-
-/* 凡例 */
-.legend-panel { position:fixed; bottom:20px; right:20px; z-index:300;
-  background:#fff; border:1px solid #ddd; border-radius:10px;
-  box-shadow:0 4px 20px rgba(0,0,0,.15); width:260px; max-height:400px;
-  overflow-y:auto; font-size:.85rem; }
-.legend-header { display:flex; justify-content:space-between; align-items:center;
-  padding:.6rem 1rem; background:#333; color:#fff; border-radius:10px 10px 0 0; font-weight:bold; }
-.legend-header button { background:none; border:none; color:#fff; cursor:pointer; }
-.legend-list { padding:.5rem; }
-.legend-item { display:flex; align-items:center; gap:8px;
-  padding:5px 8px; border-radius:6px; margin-bottom:3px; cursor:pointer; }
-.legend-item:hover { background:#f5f5f5; }
-.legend-dot { width:14px; height:14px; border-radius:50%; flex-shrink:0; }
+  background:#e8e8e8; max-height:70vh; cursor:crosshair; }
+.fp-legend { padding:.5rem .75rem; display:flex; flex-wrap:wrap; gap:8px;
+  background:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; margin-top:.5rem; }
+.fp-leg-item { display:flex; align-items:center; gap:4px; font-size:.78rem; color:#475569; }
+.fp-leg-dot { width:10px; height:10px; border-radius:50%; }
+.me-marker { z-index:50; }
 </style>
 
+{% endblock %}
+
+{% block scripts %}
+<script src="{{ url_for('static', filename='js/marker_engine.js') }}"></script>
 <script>
 let currentFloor = '1f';
-let currentTool  = 'select';
-let scales       = {'1f':1.0,'2f':1.0};
-let pendingPos   = null;
-let currentMarkerId = null;
-let showSchedules   = true;
-let autoRefreshTimer = null;
+let engine = null;
+let _schedules1f = [], _schedules2f = [];
 
-// ===== ツール =====
-function setTool(tool, btn) {
-  currentTool = tool;
-  document.querySelectorAll('.tool-btn').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('wrap-'+currentFloor).style.cursor =
-    tool==='select'?'default':'crosshair';
+function setSyncBadge(state, msg) {
+  const el = document.getElementById('fp-sync');
+  el.className = 'sync-badge sync-' + state;
+  el.textContent = msg;
 }
 
-// ===== フロア =====
-function showFloor(floor, btn) {
+// ================================================================
+//  初期化
+// ================================================================
+function initEngine(floor) {
+  engine = new MarkerEngine({
+    canvasId: `fpCanvas${floor}`,
+    imgId:    `fpImg${floor}`,
+    layerId:  `fpMarkerLayer${floor}`,
+    floor:    floor,
+    readOnly: false,
+    onSave:   () => setSyncBadge('ok', '✅ 保存しました'),
+  });
+}
+
+// ================================================================
+//  ツール
+// ================================================================
+function setTool(type, btn) {
+  document.querySelectorAll('.tb-tool').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (type === 'select') {
+    engine.setTool('select');
+  } else {
+    engine.setTool('draw');
+    engine.setType(type);
+  }
+  document.querySelector('.fp-wrap:not([style*="display:none"])').style.cursor =
+    type === 'select' ? 'default' : 'crosshair';
+}
+
+// ================================================================
+//  フロア切替
+// ================================================================
+async function switchFloor(floor, btn) {
   currentFloor = floor;
-  document.querySelectorAll('.floor-panel').forEach(p => p.style.display='none');
-  document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('floor-'+floor).style.display='block';
+  document.querySelectorAll('.fp-ftab').forEach(b => b.classList.remove('active'));
   btn.classList.add('active');
-  closePopup();
-  reloadAll();
+  document.getElementById('fp-floor-1f').style.display = floor === '1f' ? '' : 'none';
+  document.getElementById('fp-floor-2f').style.display = floor === '2f' ? '' : 'none';
+
+  // エンジンを再初期化
+  initEngine(floor);
+  await engine.load(floor);
+  renderSchedulePins(floor);
 }
 
-// ===== ズーム =====
-function zoomActive(f) {
-  scales[currentFloor] = Math.min(Math.max((scales[currentFloor]||1)*f, .2), 6);
-  document.getElementById('canvas-'+currentFloor).style.transform = `scale(${scales[currentFloor]})`;
-}
-function resetActive() {
-  scales[currentFloor]=1;
-  document.getElementById('canvas-'+currentFloor).style.transform='scale(1)';
+function toggleSchedules() {
+  renderSchedulePins(currentFloor);
 }
 
-// ===== 同期ステータス =====
-function setSyncStatus(s,m){ const el=document.getElementById('sync-status'); el.className='sync-badge sync-'+s; el.textContent=m; }
-
-// ===== 全データ再読み込み =====
-async function reloadAll() {
-  await Promise.all([ reloadMarkers(), reloadSchedulePins() ]);
-}
-
-// ===== DB マーカー =====
-async function reloadMarkers() {
-  setSyncStatus('busy','⏳ 読み込み中...');
+// ================================================================
+//  作業予定ピン
+// ================================================================
+async function loadSchedules(floor) {
   try {
-    const res = await fetch(`/api/markers?floor=${currentFloor}`);
-    renderMarkers(currentFloor, await res.json());
-    setSyncStatus('ok','✅ 同期済み');
-  } catch(e){ setSyncStatus('err','❌ 通信エラー'); }
+    const res = await fetch(`/api/schedules/floor/${floor}`);
+    const list = await res.json();
+    if (floor === '1f') _schedules1f = list;
+    else                _schedules2f = list;
+    renderSchedulePins(floor);
+    renderLegend(floor);
+  } catch(e) {}
 }
 
-function renderMarkers(floor, markers) {
-  const layer = document.getElementById('markers-'+floor);
-  layer.innerHTML='';
-  markers.forEach(m=>{
-    if(m.type==='pin')  createPinEl(floor,m);
-    if(m.type==='memo') createMemoEl(floor,m);
-    if(m.type==='area') createAreaEl(floor,m);
-  });
-}
+function renderSchedulePins(floor) {
+  const layerId = `fpSchedulePins${floor}`;
+  const layer = document.getElementById(layerId);
+  if (!layer) return;
+  layer.innerHTML = '';
+  if (!document.getElementById('togSchedules').checked) return;
 
-function createPinEl(floor,m){
-  const el=document.createElement('div');
-  el.className='marker pin-marker'; el.id='mk-'+m.id; el.setAttribute('data-id',m.id);
-  el.style.left=m.x+'px'; el.style.top=m.y+'px'; el.style.backgroundColor=m.color||'#e53935';
-  el.title=m.title||'ピン'; attachMarkerEvents(el,floor,m);
-  document.getElementById('markers-'+floor).appendChild(el);
-}
-function createMemoEl(floor,m){
-  const el=document.createElement('div');
-  el.className='marker memo-marker'; el.id='mk-'+m.id; el.setAttribute('data-id',m.id);
-  el.style.left=m.x+'px'; el.style.top=m.y+'px';
-  el.style.borderColor=m.color||'#F9A825'; el.style.color=m.color||'#F9A825';
-  el.textContent=m.title||'メモ'; attachMarkerEvents(el,floor,m);
-  document.getElementById('markers-'+floor).appendChild(el);
-}
-function createAreaEl(floor,m){
-  const el=document.createElement('div');
-  el.className='marker area-marker'; el.id='mk-'+m.id; el.setAttribute('data-id',m.id);
-  el.style.left=m.x+'px'; el.style.top=m.y+'px';
-  el.style.width=(m.w||80)+'px'; el.style.height=(m.h||50)+'px';
-  el.style.borderColor=m.color||'#e53935'; el.style.color=m.color||'#e53935';
-  el.textContent=m.title||'エリア'; attachMarkerEvents(el,floor,m);
-  document.getElementById('markers-'+floor).appendChild(el);
-}
+  const img = document.getElementById(`fpImg${floor}`);
+  if (!img || !img.naturalWidth) return;
+  const sc = engine.scale;
+  const scX = (img.clientWidth * sc) / img.naturalWidth;
+  const scY = (img.clientHeight * sc) / img.naturalHeight;
+  const list = floor === '1f' ? _schedules1f : _schedules2f;
 
-function attachMarkerEvents(el,floor,m){
-  let dragMoved=false,startX,startY,origX,origY;
-  el.addEventListener('mousedown',e=>{
-    if(currentTool!=='select')return;
-    e.stopPropagation(); dragMoved=false;
-    const sc=scales[floor]||1;
-    startX=e.clientX; startY=e.clientY; origX=parseFloat(el.style.left); origY=parseFloat(el.style.top);
-    el.classList.add('dragging');
-    const onMove=ev=>{const dx=(ev.clientX-startX)/sc,dy=(ev.clientY-startY)/sc;if(Math.abs(dx)>3||Math.abs(dy)>3)dragMoved=true;if(dragMoved){el.style.left=(origX+dx)+'px';el.style.top=(origY+dy)+'px';}};
-    const onUp=async ev=>{el.classList.remove('dragging');document.removeEventListener('mousemove',onMove);document.removeEventListener('mouseup',onUp);if(dragMoved){const nx=parseFloat(el.style.left),ny=parseFloat(el.style.top);await fetch(`/api/markers/${m.id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify({x:nx,y:ny})});m.x=nx;m.y=ny;setSyncStatus('ok','✅ 位置を保存');}};
-    document.addEventListener('mousemove',onMove); document.addEventListener('mouseup',onUp);
-  });
-  el.addEventListener('click',e=>{if(dragMoved){dragMoved=false;return;}e.stopPropagation();if(currentTool==='select')showPopup(m,e,false);});
-}
-
-// ===== 作業予定ピン =====
-async function reloadSchedulePins() {
-  try {
-    const res = await fetch(`/api/schedules/floor/${currentFloor}`);
-    const schedules = await res.json();
-    renderSchedulePins(currentFloor, schedules);
-    renderLegend(schedules);
-  } catch(e){ console.warn('schedule pins error',e); }
-}
-
-function renderSchedulePins(floor, schedules) {
-  const layer = document.getElementById('schedules-'+floor);
-  layer.innerHTML='';
-  if(!showSchedules) return;
-  // 会社ごとにグルーピング（同位置の場合はオフセット）
-  schedules.forEach((s,i)=>{
-    if(!s.map_x || !s.map_y) return;
+  list.forEach(s => {
+    if (!s.map_x || !s.map_y) return;
     const color = s.color || '#1E88E5';
     const wrap = document.createElement('div');
-    wrap.className='schedule-pin';
-    // 同じ座標が重なる場合のオフセット
-    wrap.style.left = s.map_x + 'px';
-    wrap.style.top  = s.map_y + 'px';
-
+    wrap.style.cssText = `position:absolute;left:${s.map_x*scX}px;top:${s.map_y*scY}px;
+      pointer-events:all;cursor:pointer;z-index:40;`;
     const dot = document.createElement('div');
-    dot.className='sch-pin-dot';
-    dot.style.background=color;
-
-    const label = document.createElement('div');
-    label.className='sch-pin-label';
-    label.textContent=`${s.company}：${s.work_content}`;
-
-    wrap.appendChild(dot);
-    wrap.appendChild(label);
-    wrap.addEventListener('click',e=>{
-      e.stopPropagation();
-      showPopup({
-        id:'sch-'+s.id, type:'schedule',
-        title:`${s.company}`,
-        body:`${s.work_content}\n📍 ${s.location||'場所未設定'}\n👷 ${s.workers_count}名\n🕒 ${s.time_start||'-'}〜${s.time_end||'-'}\n📅 ${s.date}${s.date_end&&s.date_end!==s.date?'〜'+s.date_end:''}\n${s.note?'📝 '+s.note:''}`,
-        color
-      }, e, true);
-    });
+    dot.style.cssText = `width:28px;height:28px;border-radius:50% 50% 50% 0;
+      transform:rotate(-45deg) translate(-50%,-50%);background:${color};
+      border:3px solid rgba(255,255,255,.85);box-shadow:2px 2px 5px rgba(0,0,0,.4);`;
+    const lbl = document.createElement('div');
+    lbl.style.cssText = `position:absolute;top:-28px;left:8px;background:rgba(0,0,0,.75);
+      color:#fff;font-size:.68rem;padding:2px 6px;border-radius:4px;white-space:nowrap;
+      opacity:0;transition:opacity .15s;pointer-events:none;`;
+    lbl.textContent = `${s.company}：${s.work_content}`;
+    wrap.appendChild(dot); wrap.appendChild(lbl);
+    wrap.addEventListener('mouseenter', () => lbl.style.opacity='1');
+    wrap.addEventListener('mouseleave', () => lbl.style.opacity='0');
+    wrap.addEventListener('click', () => showToast(`${s.company}：${s.work_content}`, 'info'));
     layer.appendChild(wrap);
   });
 }
 
-function toggleScheduleLayer() {
-  showSchedules = document.getElementById('toggleSchedules').checked;
-  reloadSchedulePins();
+function renderLegend(floor) {
+  const list = floor === '1f' ? _schedules1f : _schedules2f;
+  const byCompany = {};
+  list.forEach(s => { if (!byCompany[s.company]) byCompany[s.company] = s.color||'#1E88E5'; });
+  const el = document.getElementById('fpLegend');
+  el.innerHTML = Object.entries(byCompany).map(([co, color]) =>
+    `<div class="fp-leg-item"><div class="fp-leg-dot" style="background:${color}"></div><span>${co}</span></div>`
+  ).join('');
 }
 
-// ===== 凡例 =====
-function renderLegend(schedules) {
-  if(schedules.length===0){ document.getElementById('legendPanel').style.display='none'; return; }
-  document.getElementById('legendPanel').style.display='block';
-  const list = document.getElementById('legendList');
-  // 会社ごとにまとめる
-  const byCompany={};
-  schedules.forEach(s=>{
-    if(!byCompany[s.company]) byCompany[s.company]={color:s.color||'#1E88E5',items:[]};
-    byCompany[s.company].items.push(s);
-  });
-  list.innerHTML = Object.entries(byCompany).map(([co,v])=>`
-    <div class="legend-item" title="${v.items.map(s=>s.work_content).join(', ')}">
-      <div class="legend-dot" style="background:${v.color}"></div>
-      <div>
-        <div style="font-weight:bold;font-size:.82rem">${co}</div>
-        <div style="font-size:.72rem;color:#888">${v.items.map(s=>s.work_content).join(' / ')}</div>
-      </div>
-    </div>`).join('');
+async function reloadAll() {
+  setSyncBadge('busy', '⏳ 更新中...');
+  await Promise.all([engine.load(currentFloor), loadSchedules(currentFloor)]);
+  setSyncBadge('ok', '✅ 同期済み');
 }
 
-// ===== クリックでマーカー追加 =====
-document.querySelectorAll('.fp-wrap').forEach(wrap=>{
-  wrap.addEventListener('click',function(e){
-    if(currentTool==='select'||currentTool==='area')return;
-    if(e.target.classList.contains('marker')||e.target.closest('.marker'))return;
-    const pos=getRelPos(this,e);
-    pendingPos=pos;
-    if(currentTool==='pin'){
-      addMarkerToDB({type:'pin',floor:currentFloor,x:pos.x,y:pos.y,color:document.getElementById('marker-color').value,title:'ピン',body:''});
-    } else if(currentTool==='memo'){
-      document.getElementById('dialog-title').textContent='📝 メモを入力';
-      openMemoDialog();
-    }
-  });
-  let isDrawing=false,drawStart=null,drawEl=null;
-  wrap.addEventListener('mousedown',function(e){
-    if(currentTool!=='area')return;
-    if(e.target.classList.contains('marker')||e.target.closest('.marker'))return;
-    isDrawing=true;const pos=getRelPos(this,e);drawStart=pos;
-    drawEl=document.createElement('div');drawEl.className='area-drawing';
-    this.querySelector('.fp-canvas').appendChild(drawEl);
-  });
-  wrap.addEventListener('mousemove',function(e){
-    if(!isDrawing||!drawEl)return;const pos=getRelPos(this,e);
-    const x=Math.min(pos.x,drawStart.x),y=Math.min(pos.y,drawStart.y);
-    const w=Math.abs(pos.x-drawStart.x),h=Math.abs(pos.y-drawStart.y);
-    drawEl.style.cssText=`left:${x}px;top:${y}px;width:${w}px;height:${h}px;`;
-  });
-  wrap.addEventListener('mouseup',function(e){
-    if(!isDrawing||!drawEl)return;isDrawing=false;
-    const canvas=this.querySelector('.fp-canvas');
-    const pos=getRelPos(this,e);
-    const x=Math.min(pos.x,drawStart.x),y=Math.min(pos.y,drawStart.y);
-    const w=Math.abs(pos.x-drawStart.x),h=Math.abs(pos.y-drawStart.y);
-    canvas.removeChild(drawEl);drawEl=null;
-    if(w<10||h<10)return;
-    pendingPos={x,y,w,h};
-    document.getElementById('dialog-title').textContent='🟥 エリアのラベルを入力';
-    openMemoDialog();
-  });
-});
-
-function getRelPos(wrap,e){
-  const canvas=wrap.querySelector('.fp-canvas');
-  const rect=canvas.getBoundingClientRect();const sc=scales[currentFloor]||1;
-  return{x:(e.clientX-rect.left)/sc,y:(e.clientY-rect.top)/sc};
-}
-
-async function addMarkerToDB(data){
-  data.id='mk'+Date.now()+Math.random().toString(36).slice(2,6);
-  setSyncStatus('busy','⏳ 保存中...');
-  try{
-    await fetch('/api/markers',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(data)});
-    setSyncStatus('ok','✅ 保存しました');await reloadMarkers();
-  }catch(e){setSyncStatus('err','❌ 保存失敗');}
-}
-
-function openMemoDialog(){
-  document.getElementById('memo-title-input').value='';
-  document.getElementById('memo-body-input').value='';
-  document.getElementById('memo-dialog').style.display='flex';
-  setTimeout(()=>document.getElementById('memo-title-input').focus(),50);
-}
-function cancelMemo(){pendingPos=null;document.getElementById('memo-dialog').style.display='none';}
-function confirmMemo(){
-  const title=document.getElementById('memo-title-input').value.trim()||(currentTool==='area'?'エリア':'メモ');
-  const body=document.getElementById('memo-body-input').value.trim();
-  const color=document.getElementById('marker-color').value;
-  document.getElementById('memo-dialog').style.display='none';
-  if(!pendingPos)return;
-  const{x,y,w,h}=pendingPos;pendingPos=null;
-  const isArea=(w!==undefined&&currentTool==='area');
-  addMarkerToDB({type:isArea?'area':'memo',floor:currentFloor,x,y,w:w||null,h:h||null,color,title,body});
-}
-
-function showPopup(m,e,isSchedule=false){
-  currentMarkerId=isSchedule?null:m.id;
-  document.getElementById('popup-title-text').textContent=m.title||'マーカー';
-  document.getElementById('popup-body-text').textContent=m.body||'';
-  document.getElementById('popup-meta').textContent=m.created_by?`${m.created_by} / ${(m.created_at||'').slice(0,16)}`:'';
-  // 作業予定ピンは削除ボタン非表示
-  document.getElementById('popup-del-btn').style.display=isSchedule?'none':'inline-block';
-  if(!isSchedule&&m.color){document.getElementById('popup-title-text').style.borderLeft=`4px solid ${m.color}`;document.getElementById('popup-title-text').style.paddingLeft='8px';}
-  const pop=document.getElementById('marker-popup');pop.style.display='block';
-  const vw=window.innerWidth,vh=window.innerHeight;
-  let px=e.clientX+10,py=e.clientY+10;
-  if(px+270>vw)px=e.clientX-270;if(py+180>vh)py=e.clientY-180;
-  pop.style.left=px+'px';pop.style.top=py+'px';
-}
-function closePopup(){document.getElementById('marker-popup').style.display='none';currentMarkerId=null;}
-async function deleteCurrentMarker(){
-  if(!currentMarkerId)return;
-  setSyncStatus('busy','⏳ 削除中...');
-  await fetch(`/api/markers/${currentMarkerId}`,{method:'DELETE'});
-  setSyncStatus('ok','✅ 削除しました');closePopup();await reloadMarkers();
-}
-
-async function clearFloor(){
-  if(!confirm(`${currentFloor.toUpperCase()} のマーカーをすべて削除しますか？`))return;
-  setSyncStatus('busy','⏳ 消去中...');
-  await fetch(`/api/markers/floor/${currentFloor}`,{method:'DELETE'});
-  setSyncStatus('ok','✅ 消去しました');await reloadMarkers();
-}
-
-async function downloadWithMarkers(){
-  setSyncStatus('busy','⏳ 画像生成中...');
-  if(!window.html2canvas){
-    await new Promise(r=>{const s=document.createElement('script');s.src='https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';s.onload=r;document.head.appendChild(s);});
+async function downloadMap() {
+  if (!window.html2canvas) {
+    await new Promise(r => {
+      const s = document.createElement('script');
+      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
+      s.onload = r; document.head.appendChild(s);
+    });
   }
-  const canvas=document.getElementById('canvas-'+currentFloor);const sc=scales[currentFloor];
-  canvas.style.transform='scale(1)';
-  const cnv=await html2canvas(canvas,{scale:1,useCORS:true});
-  canvas.style.transform=`scale(${sc})`;
-  const a=document.createElement('a');
-  a.download=`配置図_${currentFloor.toUpperCase()}_${new Date().toLocaleDateString('ja')}.png`;
-  a.href=cnv.toDataURL('image/png');a.click();
-  setSyncStatus('ok','✅ 同期済み');
+  const canvasEl = document.getElementById(`fpCanvas${currentFloor}`);
+  const sc = engine.scale;
+  canvasEl.style.transform = 'scale(1)';
+  const cnv = await html2canvas(canvasEl, { scale: 1, useCORS: true });
+  canvasEl.style.transform = `scale(${sc})`;
+  const a = document.createElement('a');
+  a.download = `配置図_${currentFloor.toUpperCase()}.png`;
+  a.href = cnv.toDataURL('image/png'); a.click();
 }
 
-document.addEventListener('DOMContentLoaded',async()=>{
-  await reloadAll();
-  autoRefreshTimer=setInterval(()=>reloadAll(),30000);
-  document.addEventListener('keydown',e=>{if(e.key==='Escape'){cancelMemo();closePopup();}});
-  document.addEventListener('click',e=>{
-    const pop=document.getElementById('marker-popup');
-    if(pop.style.display!=='none'&&!pop.contains(e.target)&&!e.target.closest('.marker')&&!e.target.closest('.schedule-pin'))closePopup();
+// ================================================================
+//  初期化
+// ================================================================
+document.addEventListener('DOMContentLoaded', async () => {
+  initEngine('1f');
+  document.getElementById('fpImg1f').addEventListener('load', () => {
+    engine.redraw();
+    renderSchedulePins('1f');
+  });
+  await Promise.all([engine.load('1f'), loadSchedules('1f')]);
+
+  // Escキー
+  document.addEventListener('keydown', e => {
+    if (e.key === 'Escape') setTool('select', document.getElementById('fpt-select'));
   });
 });
 </script>
