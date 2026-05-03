@@ -244,7 +244,6 @@
         <div class="form-group full">
           <label>設備名 *</label>
           <select id="eq_equipment">
-            <option>高所作業車</option>
             <option>Dock N12</option><option>Dock N11</option><option>Dock N10</option>
             <option>Dock N9</option><option>Dock N8</option><option>Dock N7</option>
             <option>Dock N6</option><option>Dock N5</option><option>Dock N4</option>
@@ -253,22 +252,6 @@
             <option>Dock S5</option><option>Dock S4</option><option>Dock S3</option>
             <option>Dock S2</option><option>Dock S1</option>
             <option>EV1</option><option>EV2</option><option>EV3</option><option>EV4</option>
-          </select>
-        </div>
-        <div class="form-group full">
-          <label>協力会社 *</label>
-          <select id="eq_company">
-            <option value="">選択してください</option>
-            {% for c in companies %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}
-          </select>
-        </div>
-        <div class="form-group"><label>使用開始</label><input type="time" id="eq_start" value="09:00"></div>
-        <div class="form-group"><label>使用終了</label><input type="time" id="eq_end" value="10:00"></div>
-        <div class="form-group full"><label>使用目的</label><input type="text" id="eq_purpose" placeholder="例：資材搬入"></div>
-      </div>
-    </div>
-    <div class="modal-footer">
-      <button class="btn btn-secondary" onclick="closeModal('equipModal')">キャンセル</button>
       <button class="btn btn-primary" id="equipSaveBtn" onclick="saveEquipment()">予約する</button>
     </div>
   </div>
@@ -769,7 +752,6 @@ function deleteSchedule(id, name) {
 //  搬出入予約
 // ================================================================
 const EQUIPS = [
-  '高所作業車',
   'Dock N12','Dock N11','Dock N10','Dock N9','Dock N8','Dock N7',
   'Dock N6','Dock N5','Dock N4','Dock N3','Dock N2','Dock N1',
   'Dock S8','Dock S7','Dock S6','Dock S5','Dock S4','Dock S3','Dock S2','Dock S1',
