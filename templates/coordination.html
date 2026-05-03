@@ -135,7 +135,7 @@
           </div>
           <div class="form-group">
             <label>終了時刻</label>
-            <input type="time" id="sc_end" value="17:00">
+            <input type="time" id="sc_end" value="15:00">
           </div>
           <div class="form-group">
             <label>状態</label>
@@ -165,18 +165,28 @@
       </div>
 
       <!-- STEP 2: 期間設定 -->
+      <!-- STEP 2: 期間設定 -->
       <div id="step2" class="step-content">
         <div class="date-range-section">
-          <h4 style="margin:0 0 1rem;color:#333;">📅 作業期間を選択</h4>
-
-          <!-- カレンダー表示 -->
+          <h4 style="margin:0 0 .75rem;color:#333;">📅 作業期間を選択</h4>
+          <!-- クイック選択 -->
+          <div class="quick-days-row">
+            <span style="font-size:.78rem;color:#666;font-weight:bold;">クイック選択：</span>
+            <button class="qd-btn" onclick="qkDays(1)">1日</button>
+            <button class="qd-btn" onclick="qkDays(3)">3日</button>
+            <button class="qd-btn" onclick="qkDays(5)">5日</button>
+            <button class="qd-btn" onclick="qkDays(7)">1週</button>
+            <button class="qd-btn" onclick="qkDays(14)">2週</button>
+          </div>
+          <!-- カレンダーナビ -->
           <div class="cal-nav">
             <button class="cal-nav-btn" onclick="calPrev()">‹</button>
-            <span id="calMonthLabel" style="font-weight:bold;font-size:1rem;"></span>
+            <span id="calMonthLabel" style="font-weight:bold;font-size:1rem;min-width:120px;text-align:center;display:inline-block;"></span>
             <button class="cal-nav-btn" onclick="calNext()">›</button>
           </div>
+          <!-- カレンダーグリッド -->
           <div id="calGrid" class="cal-grid"></div>
-
+          <!-- 選択日表示 -->
           <div class="date-range-display">
             <div class="date-box">
               <label>開始日</label>
@@ -185,12 +195,13 @@
             </div>
             <div class="date-range-arrow">〜</div>
             <div class="date-box">
-              <label>終了日</label>
+              <label>終了日 <span style="font-size:.72rem;color:#aaa;">（省略可）</span></label>
               <div id="endDateDisplay" class="date-val">未選択（1日のみ）</div>
               <input type="date" id="sc_date_end" onchange="syncCalFromInput()">
             </div>
+            <button class="cal-clear-btn" onclick="clearRange()" title="リセット">✕</button>
           </div>
-          <p class="tip-text">💡 カレンダーの日付をクリックで開始日、もう一度クリックで終了日を設定できます</p>
+          <p class="tip-text">💡 1回クリック→開始日　2回目クリック→終了日　クイック選択も使えます</p>
         </div>
         <div class="step-nav">
           <button class="btn btn-secondary" onclick="goStep(1)">‹ 戻る</button>
@@ -200,26 +211,50 @@
 
       <!-- STEP 3: 配置図ピン -->
       <div id="step3" class="step-content">
-        <h4 style="margin:0 0 0.75rem;color:#333;">📍 配置図上の作業位置を設定</h4>
-        <div class="pin-floor-tabs">
-          <button class="pin-tab active" onclick="switchPinFloor('1f',this)">1F</button>
-          <button class="pin-tab"        onclick="switchPinFloor('2f',this)">2F</button>
-          <button class="pin-tab clear"  onclick="clearPin()">📍 ピンを削除</button>
+        <div class="pin-step-header">
+          <div>
+            <h4 style="margin:0 0 4px;">📍 作業位置を配置図に設定</h4>
+            <p class="tip-text" style="margin:0;">図面をクリックしてピンを立てる（任意）</p>
+          </div>
+          <div class="pin-floor-tabs">
+            <button class="pin-tab active" id="pft-1f" onclick="switchPinFloor('1f',this)">1F</button>
+            <button class="pin-tab"        id="pft-2f" onclick="switchPinFloor('2f',this)">2F</button>
+          </div>
         </div>
-        <p class="tip-text">💡 図面上をクリックして作業位置にピンを立ててください（任意）</p>
+
+        <!-- ズームコントロール -->
+        <div class="pin-controls">
+          <button class="pin-ctrl-btn" onclick="pinZoom(1.3)">🔍＋</button>
+          <button class="pin-ctrl-btn" onclick="pinZoom(0.77)">🔍－</button>
+          <button class="pin-ctrl-btn" onclick="pinZoomReset()">↺ リセット</button>
+          <button class="pin-ctrl-btn danger" onclick="clearPin()">🗑 ピン削除</button>
+          <span id="pinCoordLabel" class="pin-coord-label"></span>
+        </div>
+
+        <!-- ピンマップ -->
         <div class="pin-map-wrap" id="pinMapWrap">
           <div class="pin-map-canvas" id="pinMapCanvas">
-            <img id="pinMapImg" src="{{ url_for('static', filename='floorplans/floorplan_1f.png') }}"
-                 alt="配置図" draggable="false">
+            <img id="pinMapImg"
+                 src="{{ url_for('static', filename='floorplans/floorplan_1f.png') }}"
+                 alt="配置図" draggable="false"
+                 onload="onPinImgLoad()">
+            <!-- 他社の既存ピン -->
+            <div id="existingPins"></div>
+            <!-- 自分のピン -->
             <div id="pinDot" class="pin-dot" style="display:none;"></div>
           </div>
         </div>
+
         <input type="hidden" id="sc_floor" value="">
         <input type="hidden" id="sc_map_x" value="">
         <input type="hidden" id="sc_map_y" value="">
-        <div id="pinInfo" class="pin-info" style="display:none;">
+
+        <!-- ピン情報 -->
+        <div id="pinInfo" class="pin-info" style="display:none;margin-top:6px;">
           <span id="pinInfoText"></span>
+          <span class="pin-info-hint">（図面をクリックして変更できます）</span>
         </div>
+
         <div class="step-nav">
           <button class="btn btn-secondary" onclick="goStep(2)">‹ 戻る</button>
           <button class="btn btn-primary" id="scheduleSaveBtn" onclick="saveSchedule()">
@@ -293,10 +328,12 @@
 .cal-nav-btn { background:#fff; border:1px solid #ccc; border-radius:4px;
   padding:4px 12px; cursor:pointer; font-size:1rem; }
 .cal-nav-btn:hover { background:#eee; }
-.cal-grid { display:grid; grid-template-columns:repeat(7,1fr); gap:3px; margin-bottom:1rem; }
-.cal-day-name { text-align:center; font-size:0.72rem; font-weight:bold; color:#888; padding:4px 0; }
-.cal-day { text-align:center; padding:6px 2px; border-radius:6px; cursor:pointer;
-  font-size:0.85rem; border:1px solid transparent; transition:all .1s; }
+.cal-grid { display:grid; grid-template-columns:repeat(7,minmax(32px,1fr)); gap:2px;
+  margin-bottom:0.75rem; min-width:280px; }
+.cal-day-name { text-align:center; font-size:0.72rem; font-weight:bold; color:#888;
+  padding:4px 0; background:#f5f5f5; border-radius:4px; }
+.cal-day { text-align:center; padding:7px 0; border-radius:6px; cursor:pointer;
+  font-size:0.88rem; border:1px solid transparent; transition:all .1s; min-width:0; }
 .cal-day:hover { background:#E3F2FD; }
 .cal-day.other-month { color:#ccc; }
 .cal-day.today-mark { font-weight:bold; color:#1E88E5; }
@@ -315,23 +352,49 @@
 .tip-text { font-size:0.78rem; color:#888; margin:0; }
 
 /* ===== 配置図ピン ===== */
-.pin-floor-tabs { display:flex; gap:6px; margin-bottom:8px; }
-.pin-tab { padding:5px 18px; border:2px solid #bbb; border-radius:6px;
+/* ===== ピンマップ ===== */
+.pin-step-header { display:flex; justify-content:space-between; align-items:flex-start;
+  margin-bottom:.5rem; flex-wrap:wrap; gap:8px; }
+.pin-floor-tabs { display:flex; gap:4px; }
+.pin-tab { padding:4px 14px; border:2px solid #bbb; border-radius:6px;
   background:#fff; cursor:pointer; font-size:0.85rem; font-weight:bold; }
 .pin-tab.active { border-color:#1E88E5; background:#E3F2FD; color:#1E88E5; }
 .pin-tab.clear  { border-color:#e53935; color:#e53935; }
-.pin-tab.clear:hover { background:#FFEBEE; }
-.pin-map-wrap { overflow:auto; border:1px solid #ccc; border-radius:8px;
-  background:#f0f0f0; max-height:340px; cursor:crosshair; }
-.pin-map-canvas { position:relative; display:inline-block; }
-.pin-map-canvas img { display:block; max-width:100%; pointer-events:none; user-select:none; }
-.pin-dot { position:absolute; width:24px; height:24px;
+.pin-controls { display:flex; gap:6px; align-items:center; margin-bottom:6px; flex-wrap:wrap; }
+.pin-ctrl-btn { padding:4px 10px; border:1px solid #bbb; border-radius:6px;
+  background:#fff; cursor:pointer; font-size:.8rem; }
+.pin-ctrl-btn:hover { background:#f0f0f0; }
+.pin-ctrl-btn.danger { border-color:#e53935; color:#e53935; }
+.pin-ctrl-btn.danger:hover { background:#FFEBEE; }
+.pin-coord-label { font-size:.75rem; color:#64748b; margin-left:4px; }
+.pin-map-wrap { overflow:auto; border:2px solid #1E88E5; border-radius:8px;
+  background:#f0f0f0; max-height:360px; cursor:crosshair;
+  position:relative; }
+.pin-map-wrap:active { cursor:crosshair; }
+.pin-map-canvas { position:relative; display:inline-block;
+  transform-origin:top left; transition:transform .15s; }
+.pin-map-canvas img { display:block; user-select:none; }
+.pin-dot { position:absolute; width:28px; height:28px;
   border-radius:50% 50% 50% 0; transform:rotate(-45deg) translate(-50%,-50%);
-  border:3px solid rgba(0,0,0,.3); box-shadow:2px 2px 4px rgba(0,0,0,.4);
-  pointer-events:none; z-index:10; }
-.pin-info { margin-top:8px; padding:6px 12px; background:#E3F2FD;
-  border-radius:6px; font-size:0.82rem; color:#1E88E5; font-weight:bold; }
+  border:3px solid rgba(255,255,255,.9); box-shadow:2px 2px 6px rgba(0,0,0,.5);
+  pointer-events:none; z-index:20; }
+.pin-dot::after { content:''; width:10px; height:10px; background:rgba(255,255,255,.6);
+  border-radius:50%; position:absolute; top:5px; left:5px; }
+.existing-pin { position:absolute; width:18px; height:18px;
+  border-radius:50% 50% 50% 0; transform:rotate(-45deg) translate(-50%,-50%);
+  opacity:.55; pointer-events:all; cursor:pointer; z-index:10; border:2px solid rgba(255,255,255,.7); }
+.pin-info { padding:6px 10px; background:#E3F2FD; border-radius:6px;
+  font-size:.82rem; color:#1565C0; font-weight:bold; display:flex; align-items:center; gap:6px; }
+.pin-info-hint { font-size:.72rem; color:#90a4ae; font-weight:normal; }
 
+/* ===== クイック日選択 ===== */
+.quick-days-row { display:flex; align-items:center; gap:6px; margin-bottom:.75rem; flex-wrap:wrap; }
+.qd-btn { padding:3px 10px; border:1px solid #cbd5e1; border-radius:12px;
+  background:#fff; cursor:pointer; font-size:.78rem; font-weight:bold; }
+.qd-btn:hover { background:#E3F2FD; border-color:#1E88E5; color:#1E88E5; }
+.cal-clear-btn { padding:4px 10px; border:1px solid #e53935; color:#e53935;
+  border-radius:6px; background:#fff; cursor:pointer; font-size:.85rem; align-self:flex-end; margin-bottom:2px; }
+.cal-clear-btn:hover { background:#FFEBEE; }
 /* ===== アクション ===== */
 .action-cell { white-space:nowrap; }
 .btn-icon.blue  { color:#1E88E5; }
@@ -493,18 +556,37 @@ function updateDateDisplay() {
 // ================================================================
 //  ピンマップ
 // ================================================================
+// ================================================================
+//  ピンマップ（改善版）
+// ================================================================
 let pinFloor = '1f', pinX = null, pinY = null;
+let pinScale = 1.0;
 
+// フロア切替
 function switchPinFloor(floor, btn) {
   pinFloor = floor;
-  document.querySelectorAll('.pin-tab:not(.clear)').forEach(b => b.classList.remove('active'));
+  ['1f','2f'].forEach(f => document.getElementById('pft-'+f)?.classList.remove('active'));
   btn.classList.add('active');
-  document.getElementById('pinMapImg').src =
-    `/static/floorplans/floorplan_${floor}.png`;
+  const img = document.getElementById('pinMapImg');
+  img.src = `/static/floorplans/floorplan_${floor}.png`;
   document.getElementById('sc_floor').value = floor;
+  pinScale = 1.0;
+  document.getElementById('pinMapCanvas').style.transform = 'scale(1)';
+}
+
+// ズーム
+function pinZoom(f) {
+  pinScale = Math.min(Math.max(pinScale * f, 0.5), 5.0);
+  document.getElementById('pinMapCanvas').style.transform = `scale(${pinScale})`;
+  updatePinDot();
+}
+function pinZoomReset() {
+  pinScale = 1.0;
+  document.getElementById('pinMapCanvas').style.transform = 'scale(1)';
   updatePinDot();
 }
 
+// ピン削除
 function clearPin() {
   pinX = null; pinY = null;
   document.getElementById('sc_map_x').value = '';
@@ -512,46 +594,121 @@ function clearPin() {
   document.getElementById('sc_floor').value = '';
   document.getElementById('pinDot').style.display = 'none';
   document.getElementById('pinInfo').style.display = 'none';
+  document.getElementById('pinCoordLabel').textContent = '';
 }
 
-function renderPinMap() {
-  const canvas = document.getElementById('pinMapCanvas');
-  canvas.onclick = function(e) {
-    const rect  = canvas.getBoundingClientRect();
-    const img   = document.getElementById('pinMapImg');
-    const scaleX = img.naturalWidth  / img.clientWidth;
-    const scaleY = img.naturalHeight / img.clientHeight;
-    pinX = (e.clientX - rect.left)  * scaleX;
-    pinY = (e.clientY - rect.top)   * scaleY;
-    document.getElementById('sc_map_x').value  = pinX.toFixed(1);
-    document.getElementById('sc_map_y').value  = pinY.toFixed(1);
-    document.getElementById('sc_floor').value  = pinFloor;
+// 範囲クリア
+function clearRange() {
+  rangeStart = null; rangeEnd = null; calClickState = 0;
+  document.getElementById('sc_date').value = '';
+  document.getElementById('sc_date_end').value = '';
+  renderCal();
+}
+
+// クイック日数
+function qkDays(n) {
+  const base = document.getElementById('sc_date').value || new Date().toISOString().slice(0,10);
+  if (!rangeStart) { rangeStart = base; document.getElementById('sc_date').value = base; }
+  const d = new Date(rangeStart); d.setDate(d.getDate() + n - 1);
+  rangeEnd = d.toISOString().slice(0,10);
+  calClickState = 2;
+  document.getElementById('sc_date_end').value = rangeEnd;
+  renderCal();
+}
+
+// 画像ロード完了時
+function onPinImgLoad() {
+  updatePinDot();
+  loadExistingPins();
+}
+
+// クリックでピンを立てる（ページロード時に一度だけ登録）
+(function initPinClick(){
+  const wrap = document.getElementById('pinMapWrap');
+  if (!wrap) return;
+  wrap.addEventListener('click', function(e) {
+    const canvas = document.getElementById('pinMapCanvas');
+    const img    = document.getElementById('pinMapImg');
+    if (!img.naturalWidth) return;
+    const rect   = canvas.getBoundingClientRect();
+    // スケール込みの実座標に変換
+    const dispX  = (e.clientX - rect.left);
+    const dispY  = (e.clientY - rect.top);
+    const scaleX = img.naturalWidth  / (img.clientWidth  * pinScale);
+    const scaleY = img.naturalHeight / (img.clientHeight * pinScale);
+    pinX = dispX * scaleX;
+    pinY = dispY * scaleY;
+    document.getElementById('sc_map_x').value = pinX.toFixed(1);
+    document.getElementById('sc_map_y').value = pinY.toFixed(1);
+    document.getElementById('sc_floor').value = pinFloor;
     updatePinDot();
-  };
-  // 既存ピンを復元
+  });
+})();
+
+// ピンドット描画
+function updatePinDot() {
+  const dot  = document.getElementById('pinDot');
+  const img  = document.getElementById('pinMapImg');
+  const info = document.getElementById('pinInfo');
+  const coord= document.getElementById('pinCoordLabel');
+  if (pinX === null || !img.naturalWidth) {
+    dot.style.display = 'none';
+    if (info) info.style.display = 'none';
+    return;
+  }
+  const scX = (img.clientWidth  * pinScale) / img.naturalWidth;
+  const scY = (img.clientHeight * pinScale) / img.naturalHeight;
+  const color = document.getElementById('sc_color').value || '#1E88E5';
+  dot.style.display    = 'block';
+  dot.style.left       = (pinX * scX) + 'px';
+  dot.style.top        = (pinY * scY) + 'px';
+  dot.style.background = color;
+  if (info) {
+    info.style.display = 'flex';
+    document.getElementById('pinInfoText').textContent =
+      `📍 ${pinFloor.toUpperCase()} にピン設定済み`;
+  }
+  if (coord) coord.textContent = `X:${Math.round(pinX)} Y:${Math.round(pinY)}`;
+}
+
+// 既存ピン表示（他社の作業予定）
+async function loadExistingPins() {
+  const container = document.getElementById('existingPins');
+  if (!container) return;
+  container.innerHTML = '';
+  try {
+    const img = document.getElementById('pinMapImg');
+    if (!img.naturalWidth) return;
+    const res = await fetch(`/api/schedules/floor/${pinFloor}`);
+    const list = await res.json();
+    const scX = (img.clientWidth * pinScale) / img.naturalWidth;
+    const scY = (img.clientHeight * pinScale) / img.naturalHeight;
+    const editId = document.getElementById('sc_id').value;
+    list.forEach(s => {
+      if (!s.map_x || !s.map_y) return;
+      if (s.id === editId) return; // 編集中は除外
+      const el = document.createElement('div');
+      el.className = 'existing-pin';
+      el.style.left       = (s.map_x * scX) + 'px';
+      el.style.top        = (s.map_y * scY) + 'px';
+      el.style.background = s.color || '#999';
+      el.title = `${s.company}：${s.work_content}`;
+      container.appendChild(el);
+    });
+  } catch(e) {}
+}
+
+// renderPinMap は後方互換用（goStep(3)から呼ばれる）
+function renderPinMap() {
   const mx = document.getElementById('sc_map_x').value;
   const my = document.getElementById('sc_map_y').value;
-  if (mx && my) { pinX = parseFloat(mx); pinY = parseFloat(my); updatePinDot(); }
-}
-
-function updatePinDot() {
-  const dot = document.getElementById('pinDot');
+  if (mx && my) { pinX = parseFloat(mx); pinY = parseFloat(my); }
   const img = document.getElementById('pinMapImg');
-  const info = document.getElementById('pinInfo');
-  if (pinX === null) { dot.style.display = 'none'; info.style.display = 'none'; return; }
-  const scaleX = img.clientWidth  / img.naturalWidth;
-  const scaleY = img.clientHeight / img.naturalHeight;
-  const color = document.getElementById('sc_color').value || '#1E88E5';
-  dot.style.display = 'block';
-  dot.style.left    = (pinX * scaleX) + 'px';
-  dot.style.top     = (pinY * scaleY) + 'px';
-  dot.style.background = color;
-  info.style.display = 'block';
-  document.getElementById('pinInfoText').textContent =
-    `📍 ${pinFloor.toUpperCase()} — X:${Math.round(pinX)} Y:${Math.round(pinY)}`;
+  if (img.complete && img.naturalWidth) {
+    updatePinDot(); loadExistingPins();
+  }
 }
 
-// ================================================================
 //  作業予定 CRUD
 // ================================================================
 async function loadSchedules() {
@@ -645,7 +802,7 @@ function openScheduleModal() {
   document.getElementById('sc_location').value= '';
   document.getElementById('sc_workers').value = '1';
   document.getElementById('sc_start').value   = '06:00';
-  document.getElementById('sc_end').value     = '17:00';
+  document.getElementById('sc_end').value     = '15:00';
   document.getElementById('sc_status').value  = '予定';
   document.getElementById('sc_note').value    = '';
   document.getElementById('sc_color').value   = '#1E88E5';
@@ -674,7 +831,7 @@ function editSchedule(s) {
   document.getElementById('sc_location').value = s.location  || '';
   document.getElementById('sc_workers').value  = s.workers_count || 1;
   document.getElementById('sc_start').value    = s.time_start|| '06:00';
-  document.getElementById('sc_end').value      = s.time_end  || '17:00';
+  document.getElementById('sc_end').value      = s.time_end  || '15:00';
   document.getElementById('sc_status').value   = s.status    || '予定';
   document.getElementById('sc_note').value     = s.note      || '';
   const color = s.color || getCompanyColor(s.company);
