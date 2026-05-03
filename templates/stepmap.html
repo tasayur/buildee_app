@@ -1,0 +1,385 @@
+{% extends "base.html" %}
+{% block title %}Stepmap - BuildeeMgr{% endblock %}
+{% block page_title %}<i class="fa-solid fa-map-location-dot"></i> Stepmap{% endblock %}
+
+{% block content %}
+<div class="stepmap-page">
+
+  <!-- ヘッダー -->
+  <div class="sm-header">
+    <div>
+      <h2 class="sm-title">📍 Stepmap</h2>
+      <p class="sm-subtitle">統合配置図 × 週間工程</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <button class="sm-btn-refresh" onclick="loadDay(selectedDate)">🔄 更新</button>
+      <a href="/input" class="sm-btn-input">
+        <i class="fa-solid fa-pen-to-square"></i> 入力ページへ
+      </a>
+    </div>
+  </div>
+
+  <!-- 日付バー -->
+  <div class="sm-date-bar" id="dateBar"></div>
+
+  <!-- メインコンテンツ -->
+  <div class="sm-main" id="smMain">
+    <div class="sm-loading"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><p>読み込み中...</p></div>
+  </div>
+
+</div>
+
+<style>
+.stepmap-page { max-width:1600px; margin:0 auto; }
+
+/* ヘッダー */
+.sm-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:1rem; }
+.sm-title   { margin:0 0 2px; font-size:1.5rem; }
+.sm-subtitle{ margin:0; color:#64748b; font-size:.875rem; }
+.sm-btn-refresh { padding:.5rem 1rem; border:1px solid #cbd5e1; border-radius:8px;
+  background:#fff; cursor:pointer; font-size:.875rem; }
+.sm-btn-refresh:hover { background:#f1f5f9; }
+.sm-btn-input { display:inline-flex; align-items:center; gap:6px; padding:.5rem 1.25rem;
+  background:linear-gradient(135deg,#F97316,#EA580C); color:#fff; border-radius:8px;
+  text-decoration:none; font-weight:bold; font-size:.875rem; }
+
+/* 日付バー */
+.sm-date-bar { display:flex; gap:6px; overflow-x:auto; padding-bottom:6px; margin-bottom:1rem; }
+.sm-date-bar::-webkit-scrollbar { height:4px; }
+.sm-date-bar::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:2px; }
+.date-btn { flex-shrink:0; display:flex; flex-direction:column; align-items:center;
+  padding:8px 14px; border:2px solid #e2e8f0; border-radius:10px;
+  background:#fff; cursor:pointer; transition:all .15s; min-width:60px; }
+.date-btn:hover { border-color:#1E88E5; background:#EFF6FF; }
+.date-btn.active  { border-color:#1E88E5; background:#1E88E5; color:#fff; }
+.date-btn.today   { border-color:#F97316; }
+.date-btn.today .date-dayname { color:#F97316; }
+.date-btn.active.today { background:#F97316; border-color:#F97316; }
+.date-btn.has-data::after { content:'●'; font-size:6px; color:#43A047; display:block; margin-top:2px; }
+.date-btn.active.has-data::after { color:#fff; }
+.date-dayname { font-size:.7rem; font-weight:bold; }
+.date-num     { font-size:1.1rem; font-weight:bold; line-height:1.2; }
+.date-weekday { font-size:.65rem; }
+.date-sun { color:#e53935; } .date-sat { color:#1E88E5; }
+
+/* ローディング */
+.sm-loading { text-align:center; padding:3rem; color:#94a3b8; }
+
+/* メインレイアウト */
+.sm-content { display:grid; grid-template-columns:1fr 380px; gap:1.25rem; align-items:start; }
+@media(max-width:1100px){ .sm-content{ grid-template-columns:1fr; } }
+
+/* 左：配置図 */
+.sm-map-panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px;
+  box-shadow:0 1px 6px rgba(0,0,0,.06); overflow:hidden; }
+.sm-panel-header { display:flex; align-items:center; gap:8px; padding:.75rem 1rem;
+  background:#1e293b; color:#fff; }
+.sm-panel-header h3 { margin:0; font-size:1rem; }
+.sm-floor-tabs { display:flex; gap:4px; margin-left:auto; }
+.sm-ftab { padding:3px 12px; border:1px solid rgba(255,255,255,.3); border-radius:6px;
+  background:transparent; color:#fff; cursor:pointer; font-size:.8rem; }
+.sm-ftab.active { background:#fff; color:#1e293b; }
+.sm-map-wrap { position:relative; overflow:auto; background:#e8e8e8; max-height:500px; }
+.sm-map-canvas { position:relative; display:inline-block; }
+.sm-map-canvas img { display:block; max-width:100%; user-select:none; pointer-events:none; }
+.sm-pin-layer { position:absolute; top:0; left:0; width:100%; height:100%; pointer-events:none; }
+
+/* ピン */
+.sm-pin { position:absolute; pointer-events:all; cursor:pointer; }
+.sm-pin-dot { width:30px; height:30px; border-radius:50% 50% 50% 0;
+  transform:rotate(-45deg) translate(-50%,-50%); border:3px solid rgba(255,255,255,.85);
+  box-shadow:2px 2px 6px rgba(0,0,0,.4); transition:filter .15s; }
+.sm-pin:hover .sm-pin-dot { filter:brightness(1.2) drop-shadow(0 3px 8px rgba(0,0,0,.5)); }
+.sm-pin-label { position:absolute; left:16px; top:-30px; background:rgba(0,0,0,.8);
+  color:#fff; font-size:.72rem; padding:3px 8px; border-radius:4px;
+  white-space:nowrap; pointer-events:none; opacity:0; transition:opacity .15s;
+  max-width:200px; overflow:hidden; text-overflow:ellipsis; }
+.sm-pin:hover .sm-pin-label { opacity:1; }
+
+/* 凡例 */
+.sm-legend { padding:.75rem 1rem; border-top:1px solid #f1f5f9; background:#fafafa;
+  display:flex; flex-wrap:wrap; gap:8px; }
+.sm-legend-item { display:flex; align-items:center; gap:5px; font-size:.78rem; color:#475569; }
+.sm-legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
+.sm-no-pin { padding:1rem; text-align:center; color:#94a3b8; font-size:.875rem; }
+
+/* 右：情報パネル */
+.sm-info-col { display:flex; flex-direction:column; gap:1rem; }
+.sm-info-panel { background:#fff; border:1px solid #e2e8f0; border-radius:12px;
+  box-shadow:0 1px 6px rgba(0,0,0,.06); overflow:hidden; }
+.sm-date-title { font-size:1.1rem; font-weight:bold; color:#fff; }
+.sm-weekday-label { font-size:.8rem; opacity:.8; margin-left:6px; }
+
+/* 作業予定カード */
+.schedule-cards { padding:.75rem; display:flex; flex-direction:column; gap:.6rem; max-height:460px; overflow-y:auto; }
+.schedule-card { border-left:4px solid; border-radius:0 8px 8px 0;
+  padding:.6rem .85rem; background:#fafafa; position:relative; }
+.sc-company  { font-size:.78rem; font-weight:bold; opacity:.8; }
+.sc-content  { font-size:.95rem; font-weight:bold; margin:.2rem 0; }
+.sc-meta     { display:flex; flex-wrap:wrap; gap:8px; font-size:.75rem; color:#64748b; }
+.sc-status   { position:absolute; top:.5rem; right:.5rem; }
+.status-badge{ display:inline-block; padding:2px 8px; border-radius:10px; font-size:.72rem; font-weight:bold; }
+.status-予定  { background:#FFF3E0; color:#E65100; }
+.status-進行中 { background:#E3F2FD; color:#1565C0; }
+.status-完了  { background:#E8F5E9; color:#2E7D32; }
+.status-中止  { background:#FFEBEE; color:#B71C1C; }
+.sc-period { font-size:.72rem; color:#94a3b8; margin-top:.2rem; }
+
+/* 搬出入 */
+.equip-table { width:100%; border-collapse:collapse; font-size:.82rem; }
+.equip-table th { padding:.45rem .6rem; background:#f8fafc; color:#475569; font-weight:bold;
+  border-bottom:1px solid #e2e8f0; text-align:left; }
+.equip-table td { padding:.4rem .6rem; border-bottom:1px solid #f1f5f9; vertical-align:middle; }
+.equip-time { font-weight:bold; color:#1E88E5; }
+.equip-company { font-size:.75rem; color:#64748b; }
+
+/* 空 */
+.sm-empty { padding:1.5rem; text-align:center; color:#94a3b8; font-size:.875rem; }
+</style>
+
+{% endblock %}
+
+{% block scripts %}
+<script>
+let selectedDate = '{{ today }}';
+let currentFloor = '1f';
+let allDates = [];
+
+const WEEKDAYS = ['日','月','火','水','木','金','土'];
+
+// ===== 日付バー生成（今日+13日） =====
+function buildDateBar(){
+  const bar = document.getElementById('dateBar');
+  const today = new Date();
+  allDates = [];
+  for(let i=0;i<15;i++){
+    const d = new Date(today);
+    d.setDate(today.getDate()+i);
+    allDates.push(d.toISOString().slice(0,10));
+  }
+  bar.innerHTML = allDates.map((ds,i)=>{
+    const d   = new Date(ds);
+    const wd  = d.getDay();
+    const wdName = WEEKDAYS[wd];
+    const wdCls  = wd===0?'date-sun':wd===6?'date-sat':'';
+    const todayCls = i===0?'today':'';
+    const monthDay = `${d.getMonth()+1}/${d.getDate()}`;
+    return `<button class="date-btn ${todayCls}" id="dbtn-${ds}"
+      onclick="selectDate('${ds}')">
+      <span class="date-dayname">${i===0?'今日':i===1?'明日':''}</span>
+      <span class="date-num">${d.getDate()}</span>
+      <span class="date-weekday ${wdCls}">${wdName}・${d.getMonth()+1}/${d.getDate()}</span>
+    </button>`;
+  }).join('');
+}
+
+// ===== 日付選択 =====
+function selectDate(ds){
+  selectedDate = ds;
+  document.querySelectorAll('.date-btn').forEach(b=>b.classList.remove('active'));
+  const btn = document.getElementById('dbtn-'+ds);
+  if(btn) btn.classList.add('active');
+  loadDay(ds);
+}
+
+// ===== 1日分データ読み込み =====
+async function loadDay(date){
+  const main = document.getElementById('smMain');
+  main.innerHTML='<div class="sm-loading"><i class="fa-solid fa-spinner fa-spin fa-2x"></i><p>読み込み中...</p></div>';
+
+  try{
+    const [schedRes, equipRes] = await Promise.all([
+      fetch(`/api/schedules?date=${date}`),
+      fetch(`/api/equipment`)
+    ]);
+    const schedules = await schedRes.json();
+    const equipAll  = await equipRes.json();
+    const equips    = equipAll.filter(e=>e.date===date);
+
+    renderDay(date, schedules, equips);
+    markDateBtns(schedules, equips);
+  }catch(e){
+    main.innerHTML='<div class="sm-loading">⚠️ データ読み込みエラー</div>';
+  }
+}
+
+// 予定がある日付にドットを付ける
+async function markDateBtns(todaySch, todayEq){
+  // 全期間の予定を取得して has-data を付ける
+  try{
+    const res = await fetch('/api/schedules');
+    const all = await res.json();
+    allDates.forEach(ds=>{
+      const btn=document.getElementById('dbtn-'+ds);if(!btn)return;
+      const hasSch=all.some(s=>s.date<=ds&&(s.date_end?s.date_end>=ds:s.date===ds));
+      if(hasSch) btn.classList.add('has-data');
+    });
+  }catch(e){}
+}
+
+// ===== 1日レンダリング =====
+function renderDay(date, schedules, equips){
+  const main = document.getElementById('smMain');
+  const d = new Date(date);
+  const wd = WEEKDAYS[d.getDay()];
+  const wdColor = d.getDay()===0?'#e53935':d.getDay()===6?'#1E88E5':'#fff';
+  const dateStr = `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${wd}）`;
+
+  const pinsExist = schedules.some(s=>s.map_x&&s.map_y);
+
+  main.innerHTML = `
+  <div class="sm-content">
+
+    <!-- 左：配置図 -->
+    <div class="sm-map-panel">
+      <div class="sm-panel-header">
+        <h3>📍 統合配置図 — <span style="color:${wdColor}">${dateStr}</span></h3>
+        <div class="sm-floor-tabs">
+          <button class="sm-ftab active" id="smftab-1f" onclick="switchSMFloor('1f',this)">1F</button>
+          <button class="sm-ftab"        id="smftab-2f" onclick="switchSMFloor('2f',this)">2F</button>
+        </div>
+      </div>
+      <div class="sm-map-wrap" id="smMapWrap">
+        <div class="sm-map-canvas" id="smMapCanvas">
+          <img id="smMapImg" src="/static/floorplans/floorplan_1f.png" alt="配置図" draggable="false">
+          <div class="sm-pin-layer" id="smPinLayer"></div>
+        </div>
+      </div>
+      ${pinsExist ? `
+      <div class="sm-legend" id="smLegend">
+        ${[...new Map(schedules.filter(s=>s.map_x).map(s=>[s.company,s])).values()]
+          .map(s=>`<div class="sm-legend-item">
+            <div class="sm-legend-dot" style="background:${s.color||'#1E88E5'}"></div>
+            <span>${s.company}</span>
+          </div>`).join('')}
+      </div>` : '<div class="sm-no-pin">この日は配置図ピンが設定されていません</div>'}
+    </div>
+
+    <!-- 右：情報パネル -->
+    <div class="sm-info-col">
+
+      <!-- 作業予定 -->
+      <div class="sm-info-panel">
+        <div class="sm-panel-header" style="background:${schedules.length?'#1e293b':'#64748b'}">
+          <h3 style="color:#fff">📅 作業予定
+            <span style="font-size:.8rem;opacity:.8;margin-left:6px">${schedules.length}件</span>
+          </h3>
+          <a href="/input" style="margin-left:auto;font-size:.75rem;color:rgba(255,255,255,.7);text-decoration:none">＋追加</a>
+        </div>
+        ${schedules.length ? `
+        <div class="schedule-cards">
+          ${schedules.map(s=>{
+            const color=s.color||'#1E88E5';
+            const period=s.date_end&&s.date_end!==s.date?`${s.date}〜${s.date_end}`:null;
+            return `<div class="schedule-card" style="border-left-color:${color}">
+              <div class="sc-company" style="color:${color}">${s.company}</div>
+              <div class="sc-content">${s.work_content}</div>
+              <div class="sc-meta">
+                ${s.location?`<span>📍 ${s.location}</span>`:''}
+                <span>👷 ${s.workers_count}名</span>
+                <span>🕒 ${s.time_start||'--'}〜${s.time_end||'--'}</span>
+                ${s.map_x?`<span title="${s.floor?.toUpperCase()}に配置">🗺️ 配置済み</span>`:''}
+              </div>
+              ${period?`<div class="sc-period">📅 期間：${period}</div>`:''}
+              ${s.note?`<div style="font-size:.75rem;color:#94a3b8;margin-top:.25rem">💬 ${s.note}</div>`:''}
+              <div class="sc-status">
+                <span class="status-badge status-${s.status||'予定'}">${s.status||'予定'}</span>
+              </div>
+            </div>`;
+          }).join('')}
+        </div>` : `<div class="sm-empty">この日の作業予定はありません<br><a href="/input" style="color:#1E88E5">＋追加する</a></div>`}
+      </div>
+
+      <!-- 搬出入予約 -->
+      <div class="sm-info-panel">
+        <div class="sm-panel-header" style="background:${equips.length?'#1e293b':'#64748b'}">
+          <h3 style="color:#fff">🚚 搬出入予約
+            <span style="font-size:.8rem;opacity:.8;margin-left:6px">${equips.length}件</span>
+          </h3>
+        </div>
+        ${equips.length ? `
+        <div style="padding:.5rem;">
+          <table class="equip-table">
+            <thead><tr><th>設備</th><th>時間</th><th>会社</th><th>目的</th></tr></thead>
+            <tbody>
+              ${equips.sort((a,b)=>a.time_start>b.time_start?1:-1).map(e=>`
+              <tr>
+                <td style="font-weight:bold">${e.equipment}</td>
+                <td class="equip-time">${e.time_start}〜${e.time_end}</td>
+                <td class="equip-company">${e.company}</td>
+                <td style="font-size:.78rem;color:#64748b">${e.purpose||'-'}</td>
+              </tr>`).join('')}
+            </tbody>
+          </table>
+        </div>` : `<div class="sm-empty">この日の搬出入予約はありません</div>`}
+      </div>
+
+    </div><!-- /info-col -->
+  </div>`;
+
+  // 配置図ピンを描画
+  document.getElementById('smMapImg').onload = function(){
+    renderSMPins(schedules, currentFloor);
+  };
+  if(document.getElementById('smMapImg').complete){
+    renderSMPins(schedules, currentFloor);
+  }
+  // 現在のスケジュールをグローバルに保持
+  window._smSchedules = schedules;
+}
+
+// ===== 配置図ピン描画 =====
+function renderSMPins(schedules, floor){
+  const layer = document.getElementById('smPinLayer');
+  if(!layer) return;
+  layer.innerHTML='';
+  const img = document.getElementById('smMapImg');
+  if(!img) return;
+  const scX = img.clientWidth  / img.naturalWidth;
+  const scY = img.clientHeight / img.naturalHeight;
+
+  schedules.filter(s=>s.map_x&&s.map_y&&s.floor===floor).forEach(s=>{
+    const color = s.color||'#1E88E5';
+    const wrap = document.createElement('div');
+    wrap.className='sm-pin';
+    wrap.style.left=s.map_x+'px'; wrap.style.top=s.map_y+'px';
+    wrap.style.position='absolute';
+
+    const dot = document.createElement('div');
+    dot.className='sm-pin-dot'; dot.style.background=color;
+
+    const label = document.createElement('div');
+    label.className='sm-pin-label';
+    label.textContent=`${s.company}：${s.work_content}`;
+
+    wrap.appendChild(dot); wrap.appendChild(label);
+    // ピンをクリックしたらハイライト
+    wrap.addEventListener('click',e=>{
+      e.stopPropagation();
+      showToast(`${s.company}：${s.work_content} (${s.workers_count}名)`, 'info');
+    });
+    layer.appendChild(wrap);
+  });
+}
+
+// ===== フロア切替 =====
+function switchSMFloor(floor, btn){
+  currentFloor=floor;
+  document.querySelectorAll('.sm-ftab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('smMapImg').src=`/static/floorplans/floorplan_${floor}.png`;
+  document.getElementById('smMapImg').onload=function(){
+    renderSMPins(window._smSchedules||[], floor);
+  };
+  if(document.getElementById('smMapImg').complete){
+    renderSMPins(window._smSchedules||[], floor);
+  }
+}
+
+// ===== 初期化 =====
+document.addEventListener('DOMContentLoaded',()=>{
+  buildDateBar();
+  selectDate(selectedDate);
+});
+</script>
+{% endblock %}

@@ -344,6 +344,20 @@ def coordination():
 def floorplan():
     return render_template('floorplan.html')
 
+@app.route('/input')
+@login_required
+def input_page():
+    companies = db.get_companies()
+    today = date.today().isoformat()
+    return render_template('input.html', companies=companies, today=today)
+
+@app.route('/stepmap')
+@login_required
+def stepmap():
+    today = date.today().isoformat()
+    return render_template('stepmap.html', today=today)
+
+
 @app.route('/ky')
 @login_required
 def ky():
