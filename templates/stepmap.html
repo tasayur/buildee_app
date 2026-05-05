@@ -6,251 +6,387 @@
 <div class="sm-page">
 
   <!-- ヘッダー -->
-  <div class="sm-header">
-    <div>
-      <h2 class="sm-title">📍 Stepmap</h2>
-      <p class="sm-subtitle">統合配置図 × 週間工程</p>
-    </div>
+  <div class="sm-hdr">
+    <div><h2 class="sm-title">📍 Stepmap</h2><p class="sm-sub">統合配置図 × 3週間工程</p></div>
     <div style="display:flex;gap:8px;align-items:center;">
       <span id="smSyncBadge" class="sync-badge sync-ok">✅ 同期済み</span>
       <button class="sm-btn" onclick="reloadAll()">🔄 更新</button>
-      <a href="/input" class="sm-btn-orange">
-        <i class="fa-solid fa-pen-to-square"></i> 入力ページ
-      </a>
     </div>
   </div>
 
-  <!-- 日付バー -->
+  <!-- 日付バー（3週間=21日） -->
   <div class="sm-date-bar" id="dateBar"></div>
 
   <!-- メインレイアウト -->
   <div class="sm-layout">
 
-    <!-- 左：配置図 -->
+    <!-- ===== 左：配置図 ===== -->
     <div class="sm-map-col">
       <div class="sm-map-card">
+
         <!-- ツールバー -->
         <div class="sm-toolbar">
-          <!-- ツール選択 -->
-          <div class="sm-tool-group">
-            <button class="sm-tool active" id="smt-select" onclick="setTool('select',this)" title="選択・移動">🖱</button>
-            <button class="sm-tool" id="smt-pin"    onclick="setTool('pin',this)"    title="ピン">📍</button>
-            <button class="sm-tool" id="smt-range"  onclick="setTool('range',this)"  title="作業範囲">🟦</button>
-            <button class="sm-tool" id="smt-area"   onclick="setTool('area',this)"   title="エリア">🟥</button>
-            <button class="sm-tool" id="smt-material" onclick="setTool('material',this)" title="資材">📦</button>
-            <button class="sm-tool" id="smt-aerial" onclick="setTool('aerial',this)" title="高所作業">🏗️</button>
-            <button class="sm-tool" id="smt-fire"   onclick="setTool('fire',this)"   title="火気作業">🔥</button>
-            <button class="sm-tool" id="smt-comment" onclick="setTool('comment',this)" title="コメント">💬</button>
+          <div class="tb-grp">
+            <button class="sm-tool active" id="smt-select"   onclick="setMapTool('select',this)"   title="選択">🖱</button>
+            <button class="sm-tool"        id="smt-pin"      onclick="setMapTool('pin',this)"      title="ピン">📍</button>
+            <button class="sm-tool"        id="smt-range"    onclick="setMapTool('range',this)"    title="作業範囲">🟦</button>
+            <button class="sm-tool"        id="smt-area"     onclick="setMapTool('area',this)"     title="エリア">🟥</button>
+            <button class="sm-tool"        id="smt-material" onclick="setMapTool('material',this)" title="資材">📦</button>
+            <button class="sm-tool"        id="smt-aerial"   onclick="setMapTool('aerial',this)"   title="高所作業">🏗️</button>
+            <button class="sm-tool"        id="smt-fire"     onclick="setMapTool('fire',this)"     title="火気作業">🔥</button>
+            <button class="sm-tool"        id="smt-comment"  onclick="setMapTool('comment',this)"  title="コメント">💬</button>
           </div>
-          <!-- フロア切替 -->
-          <div class="sm-tool-group">
-            <button class="sm-floor active" id="smf-1f" onclick="switchFloor('1f',this)">1F</button>
-            <button class="sm-floor"        id="smf-2f" onclick="switchFloor('2f',this)">2F</button>
+          <div class="tb-grp">
+            <button class="sm-ftab active" id="smf-1f" onclick="switchFloor('1f',this)">1F</button>
+            <button class="sm-ftab"        id="smf-2f" onclick="switchFloor('2f',this)">2F</button>
           </div>
-          <!-- ズーム -->
-          <div class="sm-tool-group">
-            <button class="sm-ctrl" onclick="engine.zoom(1.3)">🔍＋</button>
-            <button class="sm-ctrl" onclick="engine.zoom(0.77)">🔍－</button>
-            <button class="sm-ctrl" onclick="engine.zoomReset()">↺</button>
+          <div class="tb-grp">
+            <button class="sm-ctrl" onclick="engine&&engine.zoom(1.3)">🔍＋</button>
+            <button class="sm-ctrl" onclick="engine&&engine.zoom(0.77)">🔍－</button>
+            <button class="sm-ctrl" onclick="engine&&engine.zoomReset()">↺</button>
           </div>
-          <!-- 表示切替 -->
-          <div class="sm-tool-group">
-            <label class="sm-toggle">
-              <input type="checkbox" id="togSchedules" checked onchange="toggleSchedulePins()">
-              <span>📋 作業予定</span>
-            </label>
+          <div class="tb-grp">
+            <label class="sm-toggle"><input type="checkbox" id="togSch" checked onchange="renderSchedulePins()"><span>📋 作業予定</span></label>
           </div>
-          <!-- 消去 -->
-          <div class="sm-tool-group" style="margin-left:auto;">
-            <button class="sm-ctrl danger" onclick="engine.clearAll()">🗑 全消去</button>
-            <button class="sm-ctrl success" onclick="downloadMap()">📸 保存</button>
+          <div class="tb-grp" style="margin-left:auto;">
+            <button class="sm-ctrl danger" onclick="engine&&engine.clearAll()">🗑 全消去</button>
           </div>
         </div>
 
         <!-- 日付タイトル -->
-        <div class="sm-map-title" id="smMapTitle">
-          📅 <span id="smDateLabel">読み込み中...</span>
-          <span class="sm-floor-label" id="smFloorLabel">1F</span>
+        <div class="sm-map-title">
+          📅 <span id="smDateLabel">---</span>
+          <span class="sm-floor-lbl" id="smFloorLbl">1F</span>
         </div>
 
-        <!-- 配置図キャンバス -->
+        <!-- 配置図 -->
         <div class="sm-map-wrap" id="smMapWrap">
-          <div id="smMapCanvas" style="position:relative;display:inline-block;transform-origin:top left;transition:transform .15s;">
+          <div id="smMapCanvas" style="position:relative;display:inline-block;transform-origin:top left;transition:transform .15s;min-width:100%;">
             <img id="smMapImg" src="/static/floorplans/floorplan_1f.png"
-                 alt="配置図" draggable="false"
-                 style="display:block;width:100%;max-width:none;">
-            <!-- 作業予定ピン（読み取り専用） -->
-            <div id="smSchedulePins" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
-            <!-- 編集可能マーカー -->
+                 alt="配置図" draggable="false" style="display:block;width:100%;">
+            <div id="smSchPins"    style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
             <div id="smMarkerLayer" style="position:absolute;top:0;left:0;width:100%;height:100%;pointer-events:none;"></div>
           </div>
         </div>
 
         <!-- 凡例 -->
-        <div class="sm-legend-bar" id="smLegend"></div>
+        <div class="sm-legend" id="smLegend"></div>
       </div>
     </div>
 
-    <!-- 右：情報パネル -->
+    <!-- ===== 右：情報パネル ===== -->
     <div class="sm-info-col">
 
       <!-- 作業予定 -->
-      <div class="sm-info-card">
-        <div class="sm-info-header dark">
+      <div class="sm-panel">
+        <div class="sm-panel-hdr">
           <span>📅 作業予定</span>
-          <span id="smSchCount" class="sm-count-badge">0件</span>
-          <a href="/input" class="sm-add-link">＋追加</a>
+          <span id="smSchCnt" class="cnt-badge">0件</span>
+          <button class="sm-add-btn" onclick="openSchModal()">＋ 追加</button>
         </div>
-        <div id="smScheduleList" class="sm-card-list"></div>
+        <div id="smSchList" class="sm-list"></div>
       </div>
 
       <!-- 搬出入予約 -->
-      <div class="sm-info-card">
-        <div class="sm-info-header dark">
+      <div class="sm-panel">
+        <div class="sm-panel-hdr">
           <span>🚚 搬出入予約</span>
-          <span id="smEquipCount" class="sm-count-badge">0件</span>
+          <span id="smEqCnt" class="cnt-badge">0件</span>
+          <button class="sm-add-btn" onclick="openEqModal()">＋ 追加</button>
         </div>
-        <div id="smEquipList" class="sm-card-list"></div>
+        <div id="smEqList" class="sm-list"></div>
       </div>
 
-      <!-- マーカー凡例 -->
-      <div class="sm-info-card">
-        <div class="sm-info-header" style="background:#475569;">
-          <span style="color:#fff">🗂 マーカー種別</span>
-        </div>
-        <div class="sm-marker-legend">
-          <div onclick="setTool('pin',    document.getElementById('smt-pin'))"    class="ml-item">📍 ピン</div>
-          <div onclick="setTool('range',  document.getElementById('smt-range'))"  class="ml-item">🟦 作業範囲</div>
-          <div onclick="setTool('area',   document.getElementById('smt-area'))"   class="ml-item">🟥 エリア</div>
-          <div onclick="setTool('material',document.getElementById('smt-material'))" class="ml-item">📦 資材</div>
-          <div onclick="setTool('aerial', document.getElementById('smt-aerial'))" class="ml-item">🏗️ 高所作業</div>
-          <div onclick="setTool('fire',   document.getElementById('smt-fire'))"   class="ml-item">🔥 火気作業</div>
-          <div onclick="setTool('comment',document.getElementById('smt-comment'))" class="ml-item">💬 コメント</div>
+      <!-- マーカー種別 -->
+      <div class="sm-panel">
+        <div class="sm-panel-hdr" style="background:#475569;"><span style="color:#fff">🗂 マーカー種別（クリックで選択）</span></div>
+        <div class="mk-legend">
+          <div class="ml-item" onclick="setMapTool('pin',document.getElementById('smt-pin'))">📍 ピン</div>
+          <div class="ml-item" onclick="setMapTool('range',document.getElementById('smt-range'))">🟦 作業範囲</div>
+          <div class="ml-item" onclick="setMapTool('area',document.getElementById('smt-area'))">🟥 エリア</div>
+          <div class="ml-item" onclick="setMapTool('material',document.getElementById('smt-material'))">📦 資材</div>
+          <div class="ml-item" onclick="setMapTool('aerial',document.getElementById('smt-aerial'))">🏗️ 高所作業</div>
+          <div class="ml-item" onclick="setMapTool('fire',document.getElementById('smt-fire'))">🔥 火気作業</div>
+          <div class="ml-item" onclick="setMapTool('comment',document.getElementById('smt-comment'))">💬 コメント</div>
         </div>
       </div>
 
+    </div><!-- /info-col -->
+  </div><!-- /layout -->
+</div><!-- /sm-page -->
+
+<!-- ========== 作業予定モーダル ========== -->
+<div id="schModal" class="sm-modal">
+<div class="sm-modal-box">
+  <div class="sm-modal-hdr"><h3 id="schModalTitle">📅 作業予定 追加</h3><button onclick="closeModal('schModal')">✕</button></div>
+  <div class="sm-modal-body">
+    <input type="hidden" id="sch_id">
+    <div class="fg-row">
+      <div class="fg full">
+        <label>協力会社 *</label>
+        <select id="sch_company" onchange="syncSchColor()">
+          <option value="">選択してください</option>
+          {% for c in companies %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="fg-row">
+      <div class="fg full"><label>作業内容 *</label><input type="text" id="sch_content" placeholder="例：1F墨出し作業"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>作業場所</label><input type="text" id="sch_location" placeholder="例：1F東側"></div>
+      <div class="fg narrow"><label>人数</label><input type="number" id="sch_workers" value="1" min="1"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>開始日 *</label><input type="date" id="sch_date" value="{{ today }}"></div>
+      <div class="fg"><label>終了日</label><input type="date" id="sch_date_end"></div>
+    </div>
+    <!-- クイック期間 -->
+    <div class="quick-days">
+      <span>期間：</span>
+      <button class="qd" onclick="schSetDays(1)">1日</button>
+      <button class="qd" onclick="schSetDays(3)">3日</button>
+      <button class="qd" onclick="schSetDays(5)">5日</button>
+      <button class="qd" onclick="schSetDays(7)">1週</button>
+      <button class="qd" onclick="schSetDays(14)">2週</button>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>開始時刻</label><input type="time" id="sch_start" value="06:00"></div>
+      <div class="fg"><label>終了時刻</label><input type="time" id="sch_end"   value="15:00"></div>
+      <div class="fg"><label>状態</label>
+        <select id="sch_status">
+          <option value="予定">予定</option><option value="進行中">進行中</option>
+          <option value="完了">完了</option><option value="中止">中止</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>表示色</label>
+        <div style="display:flex;gap:8px;align-items:center;">
+          <input type="color" id="sch_color" value="#1E88E5" oninput="document.getElementById('sch_color_prev').style.background=this.value">
+          <span id="sch_color_prev" style="width:30px;height:22px;border-radius:4px;background:#1E88E5;display:inline-block;"></span>
+        </div>
+      </div>
+      <div class="fg full"><label>備考</label><input type="text" id="sch_note" placeholder="特記事項"></div>
+    </div>
+    <!-- ピン設定 -->
+    <div class="pin-section">
+      <div class="pin-sec-hdr">
+        <span>📍 配置図ピン設定（任意）</span>
+        <div style="display:flex;gap:4px;">
+          <button class="pin-ftab active" id="mpt-1f" onclick="switchModalFloor('1f',this)">1F</button>
+          <button class="pin-ftab"        id="mpt-2f" onclick="switchModalFloor('2f',this)">2F</button>
+          <button class="pin-ftab clear"  onclick="clearModalPin()">✕ 削除</button>
+        </div>
+      </div>
+      <p style="font-size:.75rem;color:#888;margin:.25rem 0 .4rem;">図面をクリックしてピンを設定</p>
+      <div class="pin-map-wrap" id="modalPinWrap">
+        <div id="modalPinCanvas" style="position:relative;display:inline-block;min-width:100%;">
+          <img id="modalPinImg" src="/static/floorplans/floorplan_1f.png"
+               draggable="false" style="display:block;width:100%;"
+               onload="redrawModalPin()">
+          <div id="modalPinDot" style="display:none;position:absolute;width:24px;height:24px;
+            border-radius:50% 50% 50% 0;transform:rotate(-45deg) translate(-50%,-50%);
+            border:3px solid rgba(255,255,255,.85);box-shadow:2px 2px 5px rgba(0,0,0,.4);
+            pointer-events:none;z-index:20;background:#1E88E5;"></div>
+          <div id="modalExistPins"></div>
+        </div>
+      </div>
+      <input type="hidden" id="sch_floor"><input type="hidden" id="sch_map_x"><input type="hidden" id="sch_map_y">
+      <div id="modalPinInfo" style="display:none;font-size:.78rem;color:#1E88E5;padding:.3rem .5rem;background:#E3F2FD;border-radius:4px;margin-top:.3rem;"></div>
     </div>
   </div>
+  <div class="sm-modal-ftr">
+    <button class="btn-cancel" onclick="closeModal('schModal')">キャンセル</button>
+    <button class="btn-save"   onclick="saveSchedule()"><i class="fa-solid fa-save"></i> <span id="schSaveTxt">登録</span></button>
+  </div>
+</div>
+</div>
+
+<!-- ========== 搬出入予約モーダル ========== -->
+<div id="eqModal" class="sm-modal">
+<div class="sm-modal-box" style="max-width:460px;">
+  <div class="sm-modal-hdr"><h3>🚚 搬出入予約</h3><button onclick="closeModal('eqModal')">✕</button></div>
+  <div class="sm-modal-body">
+    <input type="hidden" id="eq_id">
+    <div class="fg-row">
+      <div class="fg full"><label>設備 *</label>
+        <select id="eq_equip">
+          <option>Dock N12</option><option>Dock N11</option><option>Dock N10</option>
+          <option>Dock N9</option><option>Dock N8</option><option>Dock N7</option>
+          <option>Dock N6</option><option>Dock N5</option><option>Dock N4</option>
+          <option>Dock N3</option><option>Dock N2</option><option>Dock N1</option>
+          <option>Dock S8</option><option>Dock S7</option><option>Dock S6</option>
+          <option>Dock S5</option><option>Dock S4</option><option>Dock S3</option>
+          <option>Dock S2</option><option>Dock S1</option>
+          <option>EV1</option><option>EV2</option><option>EV3</option><option>EV4</option>
+        </select>
+      </div>
+    </div>
+    <div class="fg-row">
+      <div class="fg full"><label>協力会社 *</label>
+        <select id="eq_company">
+          <option value="">選択してください</option>
+          {% for c in companies %}<option value="{{ c.name }}">{{ c.name }}</option>{% endfor %}
+        </select>
+      </div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>開始</label><input type="time" id="eq_start" value="06:00"></div>
+      <div class="fg"><label>終了</label><input type="time" id="eq_end"   value="09:00"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg full"><label>使用目的</label><input type="text" id="eq_purpose" placeholder="例：資材搬入"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>日付</label><input type="date" id="eq_date" value="{{ today }}"></div>
+    </div>
+  </div>
+  <div class="sm-modal-ftr">
+    <button class="btn-cancel" onclick="closeModal('eqModal')">キャンセル</button>
+    <button class="btn-save"   onclick="saveEquip()"><i class="fa-solid fa-save"></i> <span id="eqSaveTxt">登録</span></button>
+  </div>
+</div>
+</div>
+
+<!-- 削除確認ダイアログ -->
+<div id="confirmDlg" class="sm-modal">
+<div class="sm-modal-box" style="max-width:340px;">
+  <div class="sm-modal-hdr" style="background:#dc2626;"><h3 style="color:#fff">⚠️ 削除確認</h3><button onclick="closeModal('confirmDlg')" style="color:#fff">✕</button></div>
+  <div class="sm-modal-body"><p id="confirmMsg" style="margin:0;"></p></div>
+  <div class="sm-modal-ftr">
+    <button class="btn-cancel" onclick="closeModal('confirmDlg')">キャンセル</button>
+    <button class="btn-del" id="confirmOk">削除する</button>
+  </div>
+</div>
 </div>
 
 <style>
-.sm-page { max-width:100%; }
+/* ===== ページ ===== */
+.sm-page{max-width:100%;}
+.sm-hdr{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:.6rem;}
+.sm-title{margin:0 0 2px;font-size:1.4rem;}
+.sm-sub{margin:0;color:#64748b;font-size:.8rem;}
+.sync-badge{font-size:.75rem;padding:2px 8px;border-radius:10px;font-weight:bold;}
+.sync-ok{background:#E8F5E9;color:#2E7D32;}
+.sync-busy{background:#FFF3E0;color:#E65100;}
+.sm-btn{padding:.4rem 1rem;border:1px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;font-size:.85rem;}
 
-/* ヘッダー */
-.sm-header { display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:.75rem; }
-.sm-title  { margin:0 0 2px; font-size:1.4rem; }
-.sm-subtitle { margin:0; color:#64748b; font-size:.82rem; }
-.sync-badge { font-size:.75rem; padding:2px 8px; border-radius:10px; font-weight:bold; }
-.sync-ok   { background:#E8F5E9; color:#2E7D32; }
-.sync-busy { background:#FFF3E0; color:#E65100; }
-.sm-btn { padding:.4rem 1rem; border:1px solid #cbd5e1; border-radius:7px; background:#fff; cursor:pointer; font-size:.85rem; }
-.sm-btn-orange { display:inline-flex; align-items:center; gap:5px; padding:.4rem 1rem; background:linear-gradient(135deg,#F97316,#EA580C); color:#fff; border-radius:7px; text-decoration:none; font-size:.85rem; font-weight:bold; }
+/* ===== 日付バー ===== */
+.sm-date-bar{display:flex;gap:4px;overflow-x:auto;padding-bottom:5px;margin-bottom:.75rem;}
+.sm-date-bar::-webkit-scrollbar{height:3px;}
+.sm-date-bar::-webkit-scrollbar-thumb{background:#cbd5e1;border-radius:2px;}
+.date-btn{flex-shrink:0;display:flex;flex-direction:column;align-items:center;
+  padding:5px 9px;border:2px solid #e2e8f0;border-radius:9px;
+  background:#fff;cursor:pointer;min-width:52px;transition:all .12s;}
+.date-btn:hover{border-color:#1E88E5;background:#EFF6FF;}
+.date-btn.active{background:#1E88E5;border-color:#1E88E5;color:#fff;}
+.date-btn.today{border-color:#F97316;}
+.date-btn.has-data::after{content:'●';font-size:5px;color:#43A047;display:block;}
+.date-btn.active.has-data::after{color:#fff;}
+.d-name{font-size:.62rem;font-weight:bold;}
+.d-num{font-size:.95rem;font-weight:bold;line-height:1.2;}
+.d-sub{font-size:.58rem;}
+.d-sun{color:#e53935;}.d-sat{color:#1E88E5;}
 
-/* 日付バー */
-.sm-date-bar { display:flex; gap:5px; overflow-x:auto; padding-bottom:4px; margin-bottom:.75rem; }
-.sm-date-bar::-webkit-scrollbar { height:3px; }
-.sm-date-bar::-webkit-scrollbar-thumb { background:#cbd5e1; border-radius:2px; }
-.date-btn { flex-shrink:0; display:flex; flex-direction:column; align-items:center;
-  padding:6px 10px; border:2px solid #e2e8f0; border-radius:10px;
-  background:#fff; cursor:pointer; min-width:55px; transition:all .15s; }
-.date-btn:hover { border-color:#1E88E5; background:#EFF6FF; }
-.date-btn.active  { background:#1E88E5; border-color:#1E88E5; color:#fff; }
-.date-btn.today   { border-color:#F97316; }
-.date-btn.has-data::after { content:'●'; font-size:5px; color:#43A047; display:block; }
-.date-btn.active.has-data::after { color:#fff; }
-.date-dayname { font-size:.65rem; font-weight:bold; }
-.date-num     { font-size:1rem; font-weight:bold; line-height:1.2; }
-.date-sub     { font-size:.6rem; }
-.date-sun { color:#e53935; }
-.date-sat { color:#1E88E5; }
+/* ===== レイアウト ===== */
+.sm-layout{display:grid;grid-template-columns:1fr 340px;gap:1rem;align-items:start;}
+@media(max-width:1100px){.sm-layout{grid-template-columns:1fr;}}
 
-/* メインレイアウト */
-.sm-layout { display:grid; grid-template-columns:1fr 360px; gap:1rem; align-items:start; }
-@media(max-width:1100px) { .sm-layout { grid-template-columns:1fr; } }
+/* ===== 配置図 ===== */
+.sm-map-card{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 6px rgba(0,0,0,.06);}
+.sm-toolbar{display:flex;flex-wrap:wrap;gap:3px;align-items:center;padding:.45rem .7rem;background:#f8fafc;border-bottom:1px solid #e2e8f0;}
+.tb-grp{display:flex;gap:3px;align-items:center;}
+.tb-grp+.tb-grp{border-left:1px solid #e2e8f0;padding-left:5px;margin-left:2px;}
+.sm-tool{padding:5px 7px;border:2px solid #e2e8f0;border-radius:5px;background:#fff;cursor:pointer;font-size:.95rem;line-height:1;transition:all .12s;}
+.sm-tool:hover{border-color:#1E88E5;background:#EFF6FF;}
+.sm-tool.active{border-color:#1E88E5;background:#1E88E5;}
+.sm-ftab{padding:3px 11px;border:1px solid #bbb;border-radius:5px;background:#fff;cursor:pointer;font-size:.8rem;font-weight:bold;}
+.sm-ftab.active{background:#1e293b;color:#fff;border-color:#1e293b;}
+.sm-ctrl{padding:3px 8px;border:1px solid #bbb;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;}
+.sm-ctrl.danger{border-color:#e53935;color:#e53935;}
+.sm-toggle{display:flex;align-items:center;gap:4px;cursor:pointer;font-size:.75rem;font-weight:bold;}
+.sm-map-title{padding:.45rem .85rem;background:#1e293b;color:#fff;font-weight:bold;display:flex;align-items:center;gap:.6rem;font-size:.88rem;}
+.sm-floor-lbl{margin-left:auto;padding:1px 10px;background:rgba(255,255,255,.2);border-radius:8px;font-size:.78rem;}
+.sm-map-wrap{overflow:auto;background:#d8d8d8;cursor:crosshair;max-height:calc(100vh - 310px);min-height:380px;}
+.sm-legend{padding:.4rem .7rem;background:#f8fafc;border-top:1px solid #e2e8f0;display:flex;flex-wrap:wrap;gap:7px;min-height:32px;}
+.sm-leg-item{display:flex;align-items:center;gap:4px;font-size:.73rem;color:#475569;}
+.sm-leg-dot{width:9px;height:9px;border-radius:50%;}
 
-/* 配置図カード */
-.sm-map-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px; overflow:hidden;
-  box-shadow:0 1px 6px rgba(0,0,0,.06); }
-
-/* ツールバー */
-.sm-toolbar { display:flex; flex-wrap:wrap; gap:4px; align-items:center;
-  padding:.5rem .75rem; background:#f8fafc; border-bottom:1px solid #e2e8f0; }
-.sm-tool-group { display:flex; gap:3px; align-items:center; }
-.sm-tool-group + .sm-tool-group { border-left:1px solid #e2e8f0; padding-left:6px; margin-left:2px; }
-.sm-tool { padding:5px 8px; border:2px solid #e2e8f0; border-radius:6px;
-  background:#fff; cursor:pointer; font-size:1rem; line-height:1; transition:all .15s; }
-.sm-tool:hover { border-color:#1E88E5; background:#EFF6FF; }
-.sm-tool.active { border-color:#1E88E5; background:#1E88E5; }
-.sm-floor { padding:4px 12px; border:1px solid #bbb; border-radius:5px;
-  background:#fff; cursor:pointer; font-size:.82rem; font-weight:bold; }
-.sm-floor.active { background:#1e293b; color:#fff; border-color:#1e293b; }
-.sm-ctrl { padding:4px 9px; border:1px solid #bbb; border-radius:5px;
-  background:#fff; cursor:pointer; font-size:.78rem; }
-.sm-ctrl.danger  { border-color:#e53935; color:#e53935; }
-.sm-ctrl.success { border-color:#43A047; color:#43A047; }
-.sm-toggle { display:flex; align-items:center; gap:5px; cursor:pointer; font-size:.78rem; font-weight:bold; }
-
-/* 日付タイトル */
-.sm-map-title { padding:.5rem 1rem; background:#1e293b; color:#fff; font-weight:bold;
-  display:flex; align-items:center; gap:.75rem; font-size:.9rem; }
-.sm-floor-label { margin-left:auto; padding:2px 12px; background:rgba(255,255,255,.2);
-  border-radius:10px; font-size:.8rem; }
-
-/* 配置図ラップ（全体表示） */
-.sm-map-wrap { overflow:auto; background:#d8d8d8; cursor:crosshair;
-  max-height:calc(100vh - 320px); min-height:400px; }
-
-/* 凡例バー */
-.sm-legend-bar { padding:.5rem .75rem; background:#f8fafc; border-top:1px solid #e2e8f0;
-  display:flex; flex-wrap:wrap; gap:8px; min-height:36px; }
-.sm-legend-item { display:flex; align-items:center; gap:4px; font-size:.75rem; color:#475569; }
-.sm-legend-dot { width:10px; height:10px; border-radius:50%; flex-shrink:0; }
-
-/* 情報カード */
-.sm-info-col { display:flex; flex-direction:column; gap:.75rem; }
-.sm-info-card { background:#fff; border:1px solid #e2e8f0; border-radius:12px;
-  overflow:hidden; box-shadow:0 1px 6px rgba(0,0,0,.06); }
-.sm-info-header { display:flex; align-items:center; gap:8px; padding:.55rem .85rem;
-  background:#1e293b; color:#fff; font-weight:bold; font-size:.9rem; }
-.sm-count-badge { background:rgba(255,255,255,.2); border-radius:10px;
-  padding:1px 8px; font-size:.75rem; }
-.sm-add-link { margin-left:auto; font-size:.75rem; color:rgba(255,255,255,.7); text-decoration:none; }
-.sm-card-list { max-height:280px; overflow-y:auto; }
+/* ===== 右パネル ===== */
+.sm-info-col{display:flex;flex-direction:column;gap:.75rem;}
+.sm-panel{background:#fff;border:1px solid #e2e8f0;border-radius:12px;overflow:hidden;box-shadow:0 1px 5px rgba(0,0,0,.05);}
+.sm-panel-hdr{display:flex;align-items:center;gap:7px;padding:.5rem .85rem;background:#1e293b;color:#fff;font-weight:bold;font-size:.88rem;}
+.cnt-badge{background:rgba(255,255,255,.2);border-radius:8px;padding:1px 7px;font-size:.72rem;}
+.sm-add-btn{margin-left:auto;padding:.25rem .75rem;background:#F97316;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:.78rem;font-weight:bold;}
+.sm-add-btn:hover{background:#EA580C;}
+.sm-list{max-height:260px;overflow-y:auto;}
+.sm-empty{padding:1.25rem;text-align:center;color:#94a3b8;font-size:.83rem;}
 
 /* 作業予定カード */
-.sch-card { border-left:4px solid; padding:.6rem .85rem; background:#fafafa;
-  border-bottom:1px solid #f1f5f9; position:relative; cursor:pointer; }
-.sch-card:hover { background:#f0f4f8; }
-.sch-company { font-size:.75rem; font-weight:bold; opacity:.8; }
-.sch-content { font-size:.9rem; font-weight:bold; margin:.15rem 0; }
-.sch-meta    { display:flex; flex-wrap:wrap; gap:6px; font-size:.72rem; color:#64748b; }
-.sch-status  { position:absolute; top:.5rem; right:.5rem; font-size:.7rem;
-  padding:2px 7px; border-radius:8px; font-weight:bold; }
-.sch-st-予定  { background:#FFF3E0; color:#E65100; }
-.sch-st-進行中 { background:#E3F2FD; color:#1565C0; }
-.sch-st-完了  { background:#E8F5E9; color:#2E7D32; }
-.sch-st-中止  { background:#FFEBEE; color:#B71C1C; }
+.sch-card{border-left:4px solid;padding:.55rem .8rem;border-bottom:1px solid #f1f5f9;position:relative;background:#fafafa;}
+.sch-card:hover{background:#f0f4f8;}
+.sch-co{font-size:.72rem;font-weight:bold;}
+.sch-ct{font-size:.88rem;font-weight:bold;margin:.12rem 0;}
+.sch-meta{display:flex;flex-wrap:wrap;gap:5px;font-size:.7rem;color:#64748b;}
+.sch-st{position:absolute;top:.45rem;right:.5rem;font-size:.68rem;padding:2px 6px;border-radius:7px;font-weight:bold;}
+.st-予定{background:#FFF3E0;color:#E65100;}.st-進行中{background:#E3F2FD;color:#1565C0;}
+.st-完了{background:#E8F5E9;color:#2E7D32;}.st-中止{background:#FFEBEE;color:#B71C1C;}
+.sch-act{display:flex;gap:3px;margin-top:.35rem;}
+.btn-icon-sm{padding:2px 7px;border:1px solid;border-radius:4px;cursor:pointer;font-size:.72rem;background:#fff;}
 
-/* 搬出入カード */
-.eq-row { display:grid; grid-template-columns:auto 1fr 1fr auto; gap:8px;
-  padding:.45rem .85rem; border-bottom:1px solid #f1f5f9; font-size:.8rem;
-  align-items:center; }
-.eq-row:last-child { border-bottom:none; }
-.eq-equip { font-weight:bold; color:#1e293b; }
-.eq-time  { color:#1E88E5; font-weight:bold; }
-.eq-co    { color:#64748b; }
+/* 搬出入 */
+.eq-row{display:grid;grid-template-columns:auto 1fr 1fr auto;gap:6px;padding:.4rem .8rem;border-bottom:1px solid #f1f5f9;font-size:.78rem;align-items:center;}
+.eq-nm{font-weight:bold;color:#1e293b;}
+.eq-tm{color:#1E88E5;font-weight:bold;}
 
 /* マーカー凡例 */
-.sm-marker-legend { padding:.5rem .75rem; display:grid; grid-template-columns:1fr 1fr; gap:4px; }
-.ml-item { padding:4px 8px; border-radius:6px; font-size:.8rem; cursor:pointer;
-  border:1px solid #e2e8f0; background:#fff; text-align:center; }
-.ml-item:hover { background:#EFF6FF; border-color:#1E88E5; }
+.mk-legend{padding:.4rem .6rem;display:grid;grid-template-columns:1fr 1fr;gap:3px;}
+.ml-item{padding:4px 7px;border-radius:5px;font-size:.78rem;cursor:pointer;border:1px solid #e2e8f0;background:#fff;text-align:center;}
+.ml-item:hover{background:#EFF6FF;border-color:#1E88E5;}
 
-/* 空 */
-.sm-empty { padding:1.25rem; text-align:center; color:#94a3b8; font-size:.85rem; }
+/* ===== モーダル ===== */
+.sm-modal{display:none;position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:800;
+  align-items:center;justify-content:center;overflow-y:auto;padding:1rem;}
+.sm-modal.open{display:flex;}
+.sm-modal-box{background:#fff;border-radius:12px;width:100%;max-width:600px;
+  box-shadow:0 8px 32px rgba(0,0,0,.25);max-height:90vh;display:flex;flex-direction:column;}
+.sm-modal-hdr{display:flex;justify-content:space-between;align-items:center;
+  padding:.65rem 1rem;background:#1e293b;border-radius:12px 12px 0 0;flex-shrink:0;}
+.sm-modal-hdr h3{margin:0;color:#fff;font-size:.95rem;}
+.sm-modal-hdr button{background:none;border:none;color:#fff;cursor:pointer;font-size:1.1rem;}
+.sm-modal-body{padding:1rem;overflow-y:auto;flex:1;}
+.sm-modal-ftr{display:flex;gap:.5rem;justify-content:flex-end;padding:.65rem 1rem;
+  border-top:1px solid #e2e8f0;flex-shrink:0;}
 
-/* マーカー（markerengineが使うもの） */
-.me-marker { z-index:50; }
+/* フォーム */
+.fg-row{display:flex;gap:.65rem;margin-bottom:.65rem;flex-wrap:wrap;}
+.fg{flex:1;min-width:110px;}
+.fg.full{flex:100%;}
+.fg.narrow{flex:0 0 80px;}
+.fg label{display:block;font-size:.78rem;font-weight:bold;color:#475569;margin-bottom:3px;}
+.fg input,.fg select,.fg textarea{width:100%;border:1px solid #cbd5e1;border-radius:6px;
+  padding:.4rem .6rem;font-size:.88rem;box-sizing:border-box;background:#fff;}
+.fg input:focus,.fg select:focus{border-color:#1E88E5;outline:none;}
+
+.quick-days{display:flex;align-items:center;gap:5px;margin-bottom:.6rem;flex-wrap:wrap;}
+.quick-days span{font-size:.75rem;color:#64748b;}
+.qd{padding:2px 9px;border:1px solid #cbd5e1;border-radius:10px;background:#fff;cursor:pointer;font-size:.75rem;}
+.qd:hover{background:#E3F2FD;border-color:#1E88E5;color:#1E88E5;}
+
+.btn-cancel{padding:.45rem 1.2rem;border:1px solid #cbd5e1;border-radius:7px;background:#fff;cursor:pointer;font-size:.88rem;}
+.btn-save{padding:.45rem 1.5rem;background:linear-gradient(135deg,#F97316,#EA580C);color:#fff;
+  border:none;border-radius:7px;cursor:pointer;font-size:.88rem;font-weight:bold;}
+.btn-del{padding:.45rem 1.2rem;background:#dc2626;color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:.88rem;}
+
+/* ピン設定 */
+.pin-section{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.65rem;margin-top:.5rem;}
+.pin-sec-hdr{display:flex;justify-content:space-between;align-items:center;margin-bottom:.25rem;font-size:.85rem;font-weight:bold;color:#1e293b;}
+.pin-ftab{padding:3px 10px;border:1px solid #bbb;border-radius:5px;background:#fff;cursor:pointer;font-size:.75rem;font-weight:bold;}
+.pin-ftab.active{background:#1E88E5;border-color:#1E88E5;color:#fff;}
+.pin-ftab.clear{border-color:#e53935;color:#e53935;}
+.pin-map-wrap{overflow:auto;border:2px solid #1E88E5;border-radius:6px;background:#e0e0e0;max-height:280px;cursor:crosshair;}
+.me-marker{z-index:50;}
 </style>
 
 {% endblock %}
@@ -263,294 +399,449 @@ let selectedDate = TODAY;
 let currentFloor = '1f';
 let engine = null;
 let _schedules = [], _equips = [];
+let modalPinFloor = '1f', modalPinX = null, modalPinY = null;
 const WEEKDAYS = ['日','月','火','水','木','金','土'];
+const CC = ['#1E88E5','#43A047','#F9A825','#e53935','#8E24AA','#00ACC1','#FB8C00','#6D4C41','#546E7A','#EC407A'];
+const CM = {}; let ci = 0;
+function gc(n){if(!CM[n])CM[n]=CC[ci++%CC.length];return CM[n];}
 
 // ================================================================
-//  MarkerEngine 初期化
+// 日付バー（3週間 = 21日）
 // ================================================================
-function initEngine() {
-  engine = new MarkerEngine({
-    canvasId: 'smMapCanvas',
-    imgId:    'smMapImg',
-    layerId:  'smMarkerLayer',
-    floor:    '1f',
-    readOnly: false,
-    onSave:   () => setSyncBadge('ok', '✅ 保存しました'),
-  });
-}
-
-// ================================================================
-//  ツール
-// ================================================================
-function setTool(type, btn) {
-  document.querySelectorAll('.sm-tool').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  if (type === 'select') {
-    engine.setTool('select');
-  } else {
-    engine.setTool('draw');
-    engine.setType(type);
-    // エリア系
-    if (type === 'range' || type === 'area') {
-      engine.setType(type); // shape=area
-    }
-  }
-  document.querySelector('.sm-map-wrap').style.cursor =
-    type === 'select' ? 'default' : 'crosshair';
-}
-
-function switchFloor(floor, btn) {
-  currentFloor = floor;
-  document.querySelectorAll('.sm-floor').forEach(b => b.classList.remove('active'));
-  btn.classList.add('active');
-  document.getElementById('smFloorLabel').textContent = floor.toUpperCase();
-  engine.setFloor(floor);
-  engine.load(floor);
-  renderSchedulePins(_schedules);
-}
-
-function toggleSchedulePins() {
-  renderSchedulePins(_schedules);
-}
-
-// ================================================================
-//  同期バッジ
-// ================================================================
-function setSyncBadge(state, msg) {
-  const el = document.getElementById('smSyncBadge');
-  el.className = 'sync-badge sync-' + state;
-  el.textContent = msg;
-}
-
-// ================================================================
-//  日付バー
-// ================================================================
-function buildDateBar() {
+function buildDateBar(){
   const bar = document.getElementById('dateBar');
   const today = new Date();
   let html = '';
-  for (let i = 0; i < 15; i++) {
-    const d = new Date(today); d.setDate(today.getDate() + i);
-    const ds  = d.toISOString().slice(0, 10);
-    const wd  = d.getDay();
-    const wdCls = wd===0?'date-sun':wd===6?'date-sat':'';
-    const todayCls = i===0?'today':'';
-    html += `<button class="date-btn ${todayCls}" id="dbtn-${ds}" onclick="selectDate('${ds}')">
-      <span class="date-dayname ${wdCls}">${i===0?'今日':i===1?'明日':''}</span>
-      <span class="date-num">${d.getDate()}</span>
-      <span class="date-sub ${wdCls}">${WEEKDAYS[wd]}・${d.getMonth()+1}/${d.getDate()}</span>
+  for(let i=0;i<21;i++){
+    const d = new Date(today); d.setDate(today.getDate()+i);
+    const ds = d.toISOString().slice(0,10);
+    const wd = d.getDay();
+    const wc = wd===0?'d-sun':wd===6?'d-sat':'';
+    const tc = i===0?'today':'';
+    html += `<button class="date-btn ${tc}" id="dbtn-${ds}" onclick="selectDate('${ds}')">
+      <span class="d-name ${wc}">${i===0?'今日':i===1?'明日':''}</span>
+      <span class="d-num">${d.getDate()}</span>
+      <span class="d-sub ${wc}">${WEEKDAYS[wd]}・${d.getMonth()+1}/${d.getDate()}</span>
     </button>`;
   }
   bar.innerHTML = html;
 }
 
-function selectDate(ds) {
+function selectDate(ds){
   selectedDate = ds;
-  document.querySelectorAll('.date-btn').forEach(b => b.classList.remove('active'));
-  document.getElementById('dbtn-' + ds)?.classList.add('active');
+  document.querySelectorAll('.date-btn').forEach(b=>b.classList.remove('active'));
+  document.getElementById('dbtn-'+ds)?.classList.add('active');
+  // モーダルの日付もあわせる
+  document.getElementById('sch_date').value = ds;
+  document.getElementById('eq_date').value  = ds;
   loadDay(ds);
 }
 
 // ================================================================
-//  1日分データ読み込み
+// データ読み込み
 // ================================================================
-async function loadDay(date) {
-  setSyncBadge('busy', '⏳ 読み込み中...');
-  try {
-    const [sr, er] = await Promise.all([
+async function loadDay(date){
+  setSyncBadge('busy','⏳ 読み込み中...');
+  try{
+    const [sr,er] = await Promise.all([
       fetch(`/api/schedules?date=${date}`),
       fetch('/api/equipment')
     ]);
     _schedules = await sr.json();
     const allEq = await er.json();
-    _equips = allEq.filter(e => e.date === date);
+    _equips = allEq.filter(e=>e.date===date);
 
     updateDateLabel(date);
-    renderSchedulePins(_schedules);
-    renderScheduleList(_schedules);
-    renderEquipList(_equips);
-    renderLegend(_schedules);
-    markDateButtons();
-    setSyncBadge('ok', '✅ 同期済み');
-  } catch(e) {
-    setSyncBadge('busy', '❌ エラー');
-  }
+    renderSchedulePins();
+    renderSchList();
+    renderEqList();
+    renderLegend();
+    markDateBtns();
+    setSyncBadge('ok','✅ 同期済み');
+  }catch(e){ setSyncBadge('busy','❌ エラー'); }
 }
 
-async function reloadAll() {
-  await engine.load(currentFloor);
+async function reloadAll(){
+  if(engine) await engine.load(currentFloor);
   await loadDay(selectedDate);
 }
 
-function updateDateLabel(ds) {
+function updateDateLabel(ds){
   const d = new Date(ds);
-  const wd = WEEKDAYS[d.getDay()];
   document.getElementById('smDateLabel').textContent =
-    `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${wd}）`;
+    `${d.getFullYear()}年${d.getMonth()+1}月${d.getDate()}日（${WEEKDAYS[d.getDay()]}）`;
 }
 
-async function markDateButtons() {
-  try {
+async function markDateBtns(){
+  try{
     const res = await fetch('/api/schedules');
     const all = await res.json();
-    document.querySelectorAll('.date-btn').forEach(btn => {
-      const ds = btn.id.replace('dbtn-', '');
-      const has = all.some(s => s.date <= ds && (s.date_end ? s.date_end >= ds : s.date === ds));
-      if (has) btn.classList.add('has-data');
+    document.querySelectorAll('.date-btn').forEach(btn=>{
+      const ds = btn.id.replace('dbtn-','');
+      if(all.some(s=>s.date<=ds&&(s.date_end?s.date_end>=ds:s.date===ds)))
+        btn.classList.add('has-data');
     });
-  } catch(e) {}
+  }catch(e){}
+}
+
+function setSyncBadge(st,msg){
+  const el = document.getElementById('smSyncBadge');
+  el.className='sync-badge sync-'+st; el.textContent=msg;
 }
 
 // ================================================================
-//  作業予定ピン（読み取り専用）
+// 作業予定ピン（読み取り専用レイヤー）
 // ================================================================
-function renderSchedulePins(schedules) {
-  const layer = document.getElementById('smSchedulePins');
+function renderSchedulePins(){
+  const layer = document.getElementById('smSchPins');
   layer.innerHTML = '';
-  if (!document.getElementById('togSchedules')?.checked) return;
+  if(!document.getElementById('togSch')?.checked) return;
   const img = document.getElementById('smMapImg');
-  if (!img || !img.naturalWidth) return;
-
-  const sc = engine.scale;
-  const scX = (img.clientWidth * sc) / img.naturalWidth;
-  const scY = (img.clientHeight * sc) / img.naturalHeight;
-
-  schedules.filter(s => s.map_x && s.map_y && s.floor === currentFloor).forEach(s => {
-    const color = s.color || '#1E88E5';
-    const wrap = document.createElement('div');
-    wrap.style.cssText = `position:absolute;left:${s.map_x * scX}px;top:${s.map_y * scY}px;
-      pointer-events:all;cursor:pointer;z-index:40;`;
-
-    const dot = document.createElement('div');
-    dot.style.cssText = `width:30px;height:30px;border-radius:50% 50% 50% 0;
-      transform:rotate(-45deg) translate(-50%,-50%);background:${color};
-      border:3px solid rgba(255,255,255,.85);box-shadow:2px 2px 6px rgba(0,0,0,.4);`;
-
-    const lbl = document.createElement('div');
-    lbl.style.cssText = `position:absolute;top:-30px;left:10px;background:rgba(0,0,0,.8);
-      color:#fff;font-size:.68rem;padding:2px 6px;border-radius:4px;white-space:nowrap;
-      opacity:0;transition:opacity .15s;pointer-events:none;`;
-    lbl.textContent = `${s.company}：${s.work_content}`;
-
-    wrap.appendChild(dot); wrap.appendChild(lbl);
-    wrap.addEventListener('mouseenter', () => lbl.style.opacity='1');
-    wrap.addEventListener('mouseleave', () => lbl.style.opacity='0');
-    wrap.addEventListener('click', () => showToast(`${s.company}：${s.work_content} (${s.workers_count}名)`, 'info'));
-    layer.appendChild(wrap);
+  if(!img||!img.naturalWidth) return;
+  const sc = engine?.scale||1;
+  const scX=(img.clientWidth*sc)/img.naturalWidth;
+  const scY=(img.clientHeight*sc)/img.naturalHeight;
+  _schedules.filter(s=>s.map_x&&s.map_y&&s.floor===currentFloor).forEach(s=>{
+    const color=s.color||gc(s.company);
+    const w=document.createElement('div');
+    w.style.cssText=`position:absolute;left:${s.map_x*scX}px;top:${s.map_y*scY}px;pointer-events:all;cursor:pointer;z-index:40;`;
+    const dot=document.createElement('div');
+    dot.style.cssText=`width:28px;height:28px;border-radius:50% 50% 50% 0;transform:rotate(-45deg) translate(-50%,-50%);background:${color};border:3px solid rgba(255,255,255,.85);box-shadow:2px 2px 5px rgba(0,0,0,.4);`;
+    const lbl=document.createElement('div');
+    lbl.style.cssText=`position:absolute;top:-28px;left:8px;background:rgba(0,0,0,.8);color:#fff;font-size:.67rem;padding:2px 5px;border-radius:3px;white-space:nowrap;opacity:0;transition:opacity .15s;pointer-events:none;`;
+    lbl.textContent=`${s.company}：${s.work_content}`;
+    w.appendChild(dot);w.appendChild(lbl);
+    w.addEventListener('mouseenter',()=>lbl.style.opacity='1');
+    w.addEventListener('mouseleave',()=>lbl.style.opacity='0');
+    w.addEventListener('click',()=>openSchModal(s));
+    layer.appendChild(w);
   });
 }
 
 // ================================================================
-//  作業予定リスト
+// 作業予定リスト
 // ================================================================
-function renderScheduleList(schedules) {
-  const el = document.getElementById('smScheduleList');
-  document.getElementById('smSchCount').textContent = schedules.length + '件';
-  if (!schedules.length) {
-    el.innerHTML = `<div class="sm-empty">この日の作業予定はありません<br>
-      <a href="/input" style="color:#1E88E5;font-size:.85rem;">＋追加する</a></div>`;
+function renderSchList(){
+  const el=document.getElementById('smSchList');
+  document.getElementById('smSchCnt').textContent=_schedules.length+'件';
+  if(!_schedules.length){
+    el.innerHTML=`<div class="sm-empty">この日の作業予定はありません<br><a href="#" onclick="openSchModal();return false;" style="color:#1E88E5;">＋追加する</a></div>`;
     return;
   }
-  el.innerHTML = schedules.map(s => {
-    const color = s.color || '#1E88E5';
-    const period = s.date_end && s.date_end !== s.date ? `${s.date}〜${s.date_end}` : null;
-    return `<div class="sch-card" style="border-left-color:${color}"
-              onclick="window.location='/input'">
-      <div class="sch-company" style="color:${color}">${s.company}</div>
-      <div class="sch-content">${s.work_content}${s.map_x?'&nbsp;📍':''}</div>
+  el.innerHTML=_schedules.map(s=>{
+    const color=s.color||gc(s.company);
+    const period=s.date_end&&s.date_end!==s.date?`${s.date}〜${s.date_end}`:null;
+    return `<div class="sch-card" style="border-left-color:${color}">
+      <div class="sch-co" style="color:${color}">${s.company}</div>
+      <div class="sch-ct">${s.work_content}${s.map_x?'&nbsp;📍':''}</div>
       <div class="sch-meta">
-        ${s.location ? `<span>📍${s.location}</span>` : ''}
+        ${s.location?`<span>📍${s.location}</span>`:''}
         <span>👷${s.workers_count}名</span>
         <span>🕒${s.time_start||'--'}〜${s.time_end||'--'}</span>
       </div>
-      ${period ? `<div style="font-size:.68rem;color:#94a3b8;margin-top:2px;">📅 ${period}</div>` : ''}
-      ${s.note ? `<div style="font-size:.72rem;color:#94a3b8;">💬 ${s.note}</div>` : ''}
-      <span class="sch-status sch-st-${s.status||'予定'}">${s.status||'予定'}</span>
+      ${period?`<div style="font-size:.67rem;color:#94a3b8;margin-top:2px;">📅${period}</div>`:''}
+      ${s.note?`<div style="font-size:.7rem;color:#94a3b8;">💬${s.note}</div>`:''}
+      <span class="sch-st st-${s.status||'予定'}">${s.status||'予定'}</span>
+      <div class="sch-act">
+        <button class="btn-icon-sm" style="border-color:#1E88E5;color:#1E88E5;" onclick='openSchModal(${JSON.stringify(s)})'>✏️ 編集</button>
+        <button class="btn-icon-sm" style="border-color:#e53935;color:#e53935;" onclick="deleteSchedule('${s.id}','${s.work_content}')">🗑 削除</button>
+      </div>
     </div>`;
   }).join('');
 }
 
 // ================================================================
-//  搬出入リスト
+// 搬出入リスト
 // ================================================================
-function renderEquipList(equips) {
-  const el = document.getElementById('smEquipList');
-  document.getElementById('smEquipCount').textContent = equips.length + '件';
-  if (!equips.length) {
-    el.innerHTML = '<div class="sm-empty">この日の搬出入予約はありません</div>';
+function renderEqList(){
+  const el=document.getElementById('smEqList');
+  document.getElementById('smEqCnt').textContent=_equips.length+'件';
+  if(!_equips.length){
+    el.innerHTML=`<div class="sm-empty">この日の搬出入予約はありません</div>`;
     return;
   }
-  const sorted = [...equips].sort((a,b) => a.time_start > b.time_start ? 1 : -1);
-  el.innerHTML = sorted.map(e => `
+  el.innerHTML=[..._equips].sort((a,b)=>a.time_start>b.time_start?1:-1).map(e=>`
     <div class="eq-row">
-      <div class="eq-equip">${e.equipment}</div>
-      <div class="eq-time">${e.time_start}〜${e.time_end}</div>
-      <div class="eq-co">${e.company}</div>
-      <div style="font-size:.72rem;color:#94a3b8;">${e.purpose||''}</div>
+      <div class="eq-nm">${e.equipment}</div>
+      <div class="eq-tm">${e.time_start}〜${e.time_end}</div>
+      <div style="font-size:.75rem;color:#64748b;">${e.company}</div>
+      <div style="display:flex;gap:3px;">
+        <button class="btn-icon-sm" style="border-color:#1E88E5;color:#1E88E5;" onclick='openEqModal(${JSON.stringify(e)})'>✏️</button>
+        <button class="btn-icon-sm" style="border-color:#e53935;color:#e53935;" onclick="deleteEquip('${e.id}','${e.equipment}')">🗑</button>
+      </div>
     </div>`).join('');
 }
 
 // ================================================================
-//  凡例（作業予定の会社カラー）
+// 凡例
 // ================================================================
-function renderLegend(schedules) {
-  const el = document.getElementById('smLegend');
-  const byCompany = {};
-  schedules.forEach(s => { if (!byCompany[s.company]) byCompany[s.company] = s.color||'#1E88E5'; });
-  if (!Object.keys(byCompany).length) { el.innerHTML = ''; return; }
-  el.innerHTML = Object.entries(byCompany).map(([co, color]) =>
-    `<div class="sm-legend-item">
-      <div class="sm-legend-dot" style="background:${color}"></div>
-      <span>${co}</span>
-    </div>`).join('');
+function renderLegend(){
+  const el=document.getElementById('smLegend');
+  const byC={};
+  _schedules.forEach(s=>{if(!byC[s.company])byC[s.company]=s.color||gc(s.company);});
+  el.innerHTML=Object.entries(byC).map(([co,c])=>
+    `<div class="sm-leg-item"><div class="sm-leg-dot" style="background:${c}"></div><span>${co}</span></div>`
+  ).join('');
 }
 
 // ================================================================
-//  画像保存
+// マップツール
 // ================================================================
-async function downloadMap() {
-  setSyncBadge('busy', '⏳ 生成中...');
-  if (!window.html2canvas) {
-    await new Promise(r => {
-      const s = document.createElement('script');
-      s.src = 'https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js';
-      s.onload = r; document.head.appendChild(s);
-    });
+function setMapTool(type,btn){
+  document.querySelectorAll('.sm-tool').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  if(engine){
+    if(type==='select'){engine.setTool('select');}
+    else{engine.setTool('draw');engine.setType(type);}
   }
-  const canvas = document.getElementById('smMapCanvas');
-  const sc = engine.scale;
-  canvas.style.transform = 'scale(1)';
-  const cnv = await html2canvas(canvas, { scale: 1, useCORS: true });
-  canvas.style.transform = `scale(${sc})`;
-  const a = document.createElement('a');
-  a.download = `Stepmap_${currentFloor.toUpperCase()}_${selectedDate}.png`;
-  a.href = cnv.toDataURL('image/png'); a.click();
-  setSyncBadge('ok', '✅ 同期済み');
+  document.getElementById('smMapWrap').style.cursor=type==='select'?'default':'crosshair';
+}
+
+function switchFloor(floor,btn){
+  currentFloor=floor;
+  document.querySelectorAll('.sm-ftab').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('smFloorLbl').textContent=floor.toUpperCase();
+  if(engine){engine.setFloor(floor);engine.load(floor);}
+  renderSchedulePins();
 }
 
 // ================================================================
-//  初期化
+// 作業予定モーダル
 // ================================================================
-document.addEventListener('DOMContentLoaded', async () => {
-  buildDateBar();
-  initEngine();
+function openSchModal(s){
+  const isEdit=!!s?.id;
+  document.getElementById('schModalTitle').textContent=isEdit?'📅 作業予定 編集':'📅 作業予定 追加';
+  document.getElementById('schSaveTxt').textContent=isEdit?'更新':'登録';
+  document.getElementById('sch_id').value=s?.id||'';
+  document.getElementById('sch_company').value=s?.company||'';
+  document.getElementById('sch_content').value=s?.work_content||'';
+  document.getElementById('sch_location').value=s?.location||'';
+  document.getElementById('sch_workers').value=s?.workers_count||1;
+  document.getElementById('sch_date').value=s?.date||selectedDate;
+  document.getElementById('sch_date_end').value=s?.date_end||'';
+  document.getElementById('sch_start').value=s?.time_start||'06:00';
+  document.getElementById('sch_end').value=s?.time_end||'15:00';
+  document.getElementById('sch_status').value=s?.status||'予定';
+  document.getElementById('sch_note').value=s?.note||'';
+  const color=s?.color||'#1E88E5';
+  document.getElementById('sch_color').value=color;
+  document.getElementById('sch_color_prev').style.background=color;
+  // ピン
+  modalPinFloor=s?.floor||'1f';
+  modalPinX=s?.map_x?parseFloat(s.map_x):null;
+  modalPinY=s?.map_y?parseFloat(s.map_y):null;
+  document.getElementById('sch_floor').value=s?.floor||'';
+  document.getElementById('sch_map_x').value=s?.map_x||'';
+  document.getElementById('sch_map_y').value=s?.map_y||'';
+  document.getElementById('mpt-1f').classList.toggle('active',modalPinFloor==='1f');
+  document.getElementById('mpt-2f').classList.toggle('active',modalPinFloor==='2f');
+  document.getElementById('modalPinImg').src=`/static/floorplans/floorplan_${modalPinFloor}.png`;
+  document.getElementById('schModal').classList.add('open');
+  redrawModalPin();
+  loadModalExistPins();
+}
 
-  // 画像ロード後にピンを再描画
-  document.getElementById('smMapImg').addEventListener('load', () => {
-    engine.redraw();
-    renderSchedulePins(_schedules);
+function syncSchColor(){
+  const name=document.getElementById('sch_company').value;
+  if(name){const c=gc(name);document.getElementById('sch_color').value=c;document.getElementById('sch_color_prev').style.background=c;}
+}
+
+function schSetDays(n){
+  const base=document.getElementById('sch_date').value||TODAY;
+  const d=new Date(base);d.setDate(d.getDate()+n-1);
+  document.getElementById('sch_date_end').value=d.toISOString().slice(0,10);
+}
+
+async function saveSchedule(){
+  const company=document.getElementById('sch_company').value;
+  const content=document.getElementById('sch_content').value.trim();
+  const dateVal=document.getElementById('sch_date').value;
+  if(!company||!content){showToast('協力会社と作業内容は必須です','error');return;}
+  const body={
+    date:dateVal,
+    date_end:document.getElementById('sch_date_end').value||null,
+    company,work_content:content,
+    location:document.getElementById('sch_location').value,
+    workers_count:parseInt(document.getElementById('sch_workers').value)||1,
+    time_start:document.getElementById('sch_start').value,
+    time_end:document.getElementById('sch_end').value,
+    status:document.getElementById('sch_status').value,
+    note:document.getElementById('sch_note').value,
+    color:document.getElementById('sch_color').value,
+    floor:document.getElementById('sch_floor').value||null,
+    map_x:document.getElementById('sch_map_x').value?parseFloat(document.getElementById('sch_map_x').value):null,
+    map_y:document.getElementById('sch_map_y').value?parseFloat(document.getElementById('sch_map_y').value):null,
+  };
+  const id=document.getElementById('sch_id').value;
+  try{
+    if(id){await fetch(`/api/schedules/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}
+    else{await fetch('/api/schedules',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}
+    showToast(id?'更新しました':'登録しました','success');
+    closeModal('schModal');
+    loadDay(selectedDate);
+  }catch(e){showToast('保存に失敗しました','error');}
+}
+
+function deleteSchedule(id,name){
+  document.getElementById('confirmMsg').textContent=`「${name}」を削除しますか？`;
+  document.getElementById('confirmDlg').classList.add('open');
+  document.getElementById('confirmOk').onclick=async()=>{
+    await fetch(`/api/schedules/${id}`,{method:'DELETE'});
+    closeModal('confirmDlg');
+    loadDay(selectedDate);
+    showToast('削除しました','info');
+  };
+}
+
+// ================================================================
+// 搬出入モーダル
+// ================================================================
+function openEqModal(e){
+  const isEdit=!!e?.id;
+  document.getElementById('eqSaveTxt').textContent=isEdit?'更新':'登録';
+  document.getElementById('eq_id').value=e?.id||'';
+  document.getElementById('eq_equip').value=e?.equipment||'Dock N12';
+  document.getElementById('eq_company').value=e?.company||'';
+  document.getElementById('eq_start').value=e?.time_start||'06:00';
+  document.getElementById('eq_end').value=e?.time_end||'09:00';
+  document.getElementById('eq_purpose').value=e?.purpose||'';
+  document.getElementById('eq_date').value=e?.date||selectedDate;
+  document.getElementById('eqModal').classList.add('open');
+}
+
+async function saveEquip(){
+  const company=document.getElementById('eq_company').value;
+  if(!company){showToast('協力会社は必須です','error');return;}
+  const body={
+    date:document.getElementById('eq_date').value,
+    equipment:document.getElementById('eq_equip').value,
+    company,
+    time_start:document.getElementById('eq_start').value,
+    time_end:document.getElementById('eq_end').value,
+    purpose:document.getElementById('eq_purpose').value,
+  };
+  const id=document.getElementById('eq_id').value;
+  try{
+    if(id){await fetch(`/api/equipment/${id}`,{method:'PUT',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}
+    else{await fetch('/api/equipment',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify(body)});}
+    showToast(id?'更新しました':'登録しました','success');
+    closeModal('eqModal');
+    loadDay(selectedDate);
+  }catch(e){showToast('保存に失敗しました','error');}
+}
+
+function deleteEquip(id,name){
+  document.getElementById('confirmMsg').textContent=`「${name}」の予約を削除しますか？`;
+  document.getElementById('confirmDlg').classList.add('open');
+  document.getElementById('confirmOk').onclick=async()=>{
+    await fetch(`/api/equipment/${id}`,{method:'DELETE'});
+    closeModal('confirmDlg');
+    loadDay(selectedDate);
+    showToast('削除しました','info');
+  };
+}
+
+// ================================================================
+// モーダルピン
+// ================================================================
+function switchModalFloor(floor,btn){
+  modalPinFloor=floor;
+  document.querySelectorAll('.pin-ftab:not(.clear)').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+  document.getElementById('modalPinImg').src=`/static/floorplans/floorplan_${floor}.png`;
+  document.getElementById('sch_floor').value=floor;
+}
+function clearModalPin(){
+  modalPinX=null;modalPinY=null;
+  document.getElementById('sch_floor').value='';
+  document.getElementById('sch_map_x').value='';
+  document.getElementById('sch_map_y').value='';
+  document.getElementById('modalPinDot').style.display='none';
+  document.getElementById('modalPinInfo').style.display='none';
+}
+function redrawModalPin(){
+  const dot=document.getElementById('modalPinDot');
+  const img=document.getElementById('modalPinImg');
+  if(!img.naturalWidth||modalPinX===null){dot.style.display='none';return;}
+  const scX=img.clientWidth/img.naturalWidth;
+  const scY=img.clientHeight/img.naturalHeight;
+  const color=document.getElementById('sch_color').value||'#1E88E5';
+  dot.style.display='block';
+  dot.style.left=(modalPinX*scX)+'px';dot.style.top=(modalPinY*scY)+'px';
+  dot.style.background=color;
+  const info=document.getElementById('modalPinInfo');
+  info.style.display='block';
+  info.textContent=`📍 ${modalPinFloor.toUpperCase()} にピン設定済み`;
+}
+async function loadModalExistPins(){
+  const container=document.getElementById('modalExistPins');
+  container.innerHTML='';
+  try{
+    const res=await fetch(`/api/schedules/floor/${modalPinFloor}`);
+    const list=await res.json();
+    const img=document.getElementById('modalPinImg');
+    if(!img.naturalWidth)return;
+    const scX=img.clientWidth/img.naturalWidth;
+    const scY=img.clientHeight/img.naturalHeight;
+    const editId=document.getElementById('sch_id').value;
+    list.forEach(s=>{
+      if(!s.map_x||!s.map_y||s.id===editId)return;
+      const el=document.createElement('div');
+      el.style.cssText=`position:absolute;width:16px;height:16px;border-radius:50% 50% 50% 0;
+        transform:rotate(-45deg) translate(-50%,-50%);background:${s.color||gc(s.company)};
+        opacity:.5;left:${s.map_x*scX}px;top:${s.map_y*scY}px;border:2px solid rgba(255,255,255,.7);`;
+      el.title=`${s.company}：${s.work_content}`;
+      container.appendChild(el);
+    });
+  }catch(e){}
+}
+// ピンクリック
+document.getElementById('modalPinWrap').addEventListener('click',function(e){
+  const canvas=document.getElementById('modalPinCanvas');
+  const img=document.getElementById('modalPinImg');
+  if(!img.naturalWidth)return;
+  const rect=canvas.getBoundingClientRect();
+  modalPinX=(e.clientX-rect.left)*(img.naturalWidth/img.clientWidth);
+  modalPinY=(e.clientY-rect.top)*(img.naturalHeight/img.clientHeight);
+  document.getElementById('sch_map_x').value=modalPinX.toFixed(1);
+  document.getElementById('sch_map_y').value=modalPinY.toFixed(1);
+  document.getElementById('sch_floor').value=modalPinFloor;
+  redrawModalPin();
+});
+document.getElementById('modalPinImg').addEventListener('load',()=>{redrawModalPin();loadModalExistPins();});
+
+// ================================================================
+// 共通
+// ================================================================
+function closeModal(id){document.getElementById(id).classList.remove('open');}
+
+// ================================================================
+// 初期化
+// ================================================================
+document.addEventListener('DOMContentLoaded',async()=>{
+  buildDateBar();
+
+  // MarkerEngine 初期化
+  engine=new MarkerEngine({
+    canvasId:'smMapCanvas',imgId:'smMapImg',layerId:'smMarkerLayer',
+    floor:'1f',readOnly:false,
+    onSave:()=>setSyncBadge('ok','✅ 保存しました'),
   });
 
-  // 初回データ読み込み
+  document.getElementById('smMapImg').addEventListener('load',()=>{
+    engine.redraw();renderSchedulePins();
+  });
+
   selectDate(TODAY);
   await engine.load('1f');
+  setInterval(()=>reloadAll(),30000);
 
-  // 30秒自動更新
-  setInterval(() => reloadAll(), 30000);
-
-  // Escキー
-  document.addEventListener('keydown', e => {
-    if (e.key === 'Escape') setTool('select', document.getElementById('smt-select'));
+  document.addEventListener('keydown',e=>{
+    if(e.key==='Escape'){
+      closeModal('schModal');closeModal('eqModal');closeModal('confirmDlg');
+      setMapTool('select',document.getElementById('smt-select'));
+    }
   });
 });
 </script>

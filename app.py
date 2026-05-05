@@ -355,7 +355,8 @@ def input_page():
 @login_required
 def stepmap():
     today = date.today().isoformat()
-    return render_template('stepmap.html', today=today)
+    companies = db.get_companies()
+    return render_template('stepmap.html', today=today, companies=companies)
 
 
 @app.route('/ky')
