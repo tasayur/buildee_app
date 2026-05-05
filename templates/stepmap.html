@@ -134,7 +134,7 @@
       <div class="fg full"><label>作業内容 *</label><input type="text" id="sch_content" placeholder="例：1F墨出し作業"></div>
     </div>
     <div class="fg-row">
-      <div class="fg"><label>作業場所</label><input type="text" id="sch_location" placeholder="例：1F東側"></div>
+      <div class="fg"><label>作業場所</label><div style="display:flex;gap:5px;"><select id="sch_location_floor" style="flex:0 0 90px;border:1px solid #cbd5e1;border-radius:6px;padding:.4rem .4rem;font-size:.88rem;"><option value="">階層</option><option value="1F">1F</option><option value="2F">2F</option><option value="3F">3F</option><option value="4F">4F</option><option value="5F">5F</option><option value="屋外">屋外</option><option value="屋上">屋上</option></select><input type="text" id="sch_location" placeholder="詳細（例：東側）" style="flex:1;"></div></div>
       <div class="fg narrow"><label>人数</label><input type="number" id="sch_workers" value="1" min="1"></div>
     </div>
     <div class="fg-row">
@@ -616,7 +616,7 @@ function openSchModal(s){
   document.getElementById('sch_id').value=s?.id||'';
   document.getElementById('sch_company').value=s?.company||'';
   document.getElementById('sch_content').value=s?.work_content||'';
-  document.getElementById('sch_location').value=s?.location||'';
+    const FLOORS=["1F","2F","3F","4F","5F","屋外","屋上"];const loc=s?.location||"";const fl=FLOORS.find(f=>loc.startsWith(f))||"" ;document.getElementById("sch_location_floor").value=fl;document.getElementById("sch_location").value=fl?loc.slice(fl.length).trim():loc;
   document.getElementById('sch_workers').value=s?.workers_count||1;
   document.getElementById('sch_date').value=s?.date||selectedDate;
   document.getElementById('sch_date_end').value=s?.date_end||'';
@@ -662,7 +662,7 @@ async function saveSchedule(){
     date:dateVal,
     date_end:document.getElementById('sch_date_end').value||null,
     company,work_content:content,
-    location:document.getElementById('sch_location').value,
+    location:(()=>{const fl=document.getElementById('sch_location_floor').value;const lo=document.getElementById('sch_location').value.trim();return fl&&lo?fl+' '+lo:fl||lo;})(),
     workers_count:parseInt(document.getElementById('sch_workers').value)||1,
     time_start:document.getElementById('sch_start').value,
     time_end:document.getElementById('sch_end').value,
