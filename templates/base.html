@@ -50,36 +50,6 @@
       <a href="/" class="nav-item {% if request.path == '/' %}active{% endif %}">
         <i class="fa-solid fa-gauge-high"></i><span>ダッシュボード</span>
       </a>
-      <div class="nav-section">調整会議</div>
-      <a href="/coordination" class="nav-item {% if request.path == '/coordination' %}active{% endif %}">
-        <i class="fa-solid fa-calendar-days"></i><span>作業予定・調整</span>
-      </a>
-      <div class="nav-section">電子KY</div>
-      <a href="/ky" class="nav-item {% if request.path == '/ky' %}active{% endif %}">
-        <i class="fa-solid fa-triangle-exclamation"></i><span>危険予知活動</span>
-      </a>
-      <div class="nav-section">労務安全</div>
-      <a href="/safety" class="nav-item {% if request.path == '/safety' %}active{% endif %}">
-        <i class="fa-solid fa-shield-halved"></i><span>安全書類・作業員</span>
-      </a>
-      <div class="nav-section">データ出力</div>
-      <a href="/export" class="nav-item {% if request.path == "/export" %}active{% endif %}">
-        <i class="fa-solid fa-file-excel"></i><span>Excelエクスポート</span>
-      </a>
-      <div class="nav-section">入退場</div>
-      <a href="/qr-gate" class="nav-item {% if request.path == "/qr-gate" %}active{% endif %}">
-        <i class="fa-solid fa-qrcode"></i><span>QRコードゲート</span>
-      </a>
-      <a href="/attendance" class="nav-item {% if request.path == '/attendance' %}active{% endif %}">
-        <i class="fa-solid fa-door-open"></i><span>入退場管理</span>
-      </a>
-      <a href="/floorplan" class="nav-item {% if request.path == '/floorplan' %}active{% endif %}">
-        <i class="fa-solid fa-map"></i><span>配置図</span>
-      </a>
-      <div class="nav-section-label">打合せ</div>
-      <a href="/input" class="nav-item {% if request.path == '/input' %}active{% endif %}">
-        <i class="fa-solid fa-pen-to-square"></i><span>入力ページ</span>
-      </a>
       <a href="/stepmap" class="nav-item {% if request.path == '/stepmap' %}active{% endif %}">
         <i class="fa-solid fa-map-location-dot"></i><span>Stepmap</span>
       </a>
@@ -87,8 +57,6 @@
         <i class="fa-solid fa-envelope"></i><span>日報作成</span>
       </a>
     </nav>
-    </nav>
-    <div class="sidebar-footer">
     <div class="sidebar-footer">
       <i class="fa-solid fa-circle-info"></i><span>v1.0.0</span>
     </div>

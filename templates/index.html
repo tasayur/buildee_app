@@ -1,5 +1,5 @@
 {% extends "base.html" %}
-{% block title %}ダッシュボード{% endblock %}
+{% block title %}ダッシュボード - BuildeeMgr{% endblock %}
 {% block page_title %}<i class="fa-solid fa-gauge-high"></i> ダッシュボード{% endblock %}
 
 {% block content %}
@@ -8,31 +8,31 @@
   <!-- KPI Cards -->
   <div class="kpi-grid">
     <div class="kpi-card blue">
-      <div class="kpi-icon"><i class="fa-solid fa-people-group"></i></div>
-      <div class="kpi-body">
-        <div class="kpi-value" id="kpi-workers">--</div>
-        <div class="kpi-label">本日の入場者</div>
-      </div>
-    </div>
-    <div class="kpi-card green">
       <div class="kpi-icon"><i class="fa-solid fa-clipboard-list"></i></div>
       <div class="kpi-body">
         <div class="kpi-value" id="kpi-schedules">--</div>
-        <div class="kpi-label">作業予定</div>
+        <div class="kpi-label">本日の作業予定</div>
+      </div>
+    </div>
+    <div class="kpi-card green">
+      <div class="kpi-icon"><i class="fa-solid fa-people-group"></i></div>
+      <div class="kpi-body">
+        <div class="kpi-value" id="kpi-workers">--</div>
+        <div class="kpi-label">本日の作業人数</div>
       </div>
     </div>
     <div class="kpi-card orange">
-      <div class="kpi-icon"><i class="fa-solid fa-triangle-exclamation"></i></div>
+      <div class="kpi-icon"><i class="fa-solid fa-truck-ramp-box"></i></div>
       <div class="kpi-body">
-        <div class="kpi-value" id="kpi-ky">--</div>
-        <div class="kpi-label">未承認KY</div>
+        <div class="kpi-value" id="kpi-equip">--</div>
+        <div class="kpi-label">搬出入予約</div>
       </div>
     </div>
-    <div class="kpi-card red">
-      <div class="kpi-icon"><i class="fa-solid fa-id-card"></i></div>
+    <div class="kpi-card purple">
+      <div class="kpi-icon"><i class="fa-solid fa-map-location-dot"></i></div>
       <div class="kpi-body">
-        <div class="kpi-value" id="kpi-certs">--</div>
-        <div class="kpi-label">資格期限アラート</div>
+        <div class="kpi-value" id="kpi-markers">--</div>
+        <div class="kpi-label">配置マーカー</div>
       </div>
     </div>
   </div>
@@ -44,20 +44,20 @@
     <div class="dash-card">
       <div class="card-header">
         <i class="fa-solid fa-calendar-check"></i> 本日の作業予定
-        <a href="/coordination" class="card-link">詳細 →</a>
+        <a href="/stepmap" class="card-link">Stepmapで見る →</a>
       </div>
       <div class="card-body" id="today-schedules">
         <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i></div>
       </div>
     </div>
 
-    <!-- 資格期限アラート -->
+    <!-- 本日の搬出入予約 -->
     <div class="dash-card">
       <div class="card-header">
-        <i class="fa-solid fa-bell"></i> 資格期限アラート
-        <a href="/safety" class="card-link">詳細 →</a>
+        <i class="fa-solid fa-truck-ramp-box"></i> 本日の搬出入予約
+        <a href="/stepmap" class="card-link">Stepmapで見る →</a>
       </div>
-      <div class="card-body" id="cert-alerts">
+      <div class="card-body" id="today-equip">
         <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i></div>
       </div>
     </div>
@@ -69,96 +69,129 @@
       </div>
       <div class="card-body">
         <div class="quick-actions">
-          <a href="/coordination" class="qa-btn blue">
-            <i class="fa-solid fa-plus"></i> 作業予定
+          <a href="/stepmap" class="qa-btn blue">
+            <i class="fa-solid fa-map-location-dot"></i> Stepmap
           </a>
-          <a href="/ky" class="qa-btn orange">
-            <i class="fa-solid fa-shield-halved"></i> KY記録
+          <a href="/daily-report" class="qa-btn green">
+            <i class="fa-solid fa-envelope"></i> 日報作成
           </a>
-          <a href="/attendance" class="qa-btn green">
-            <i class="fa-solid fa-door-open"></i> 入退場
+          <a href="/stepmap" class="qa-btn orange" id="qa-add-schedule" onclick="event.preventDefault();window.location='/stepmap'">
+            <i class="fa-solid fa-plus"></i> 作業予定追加
           </a>
-          <a href="/safety" class="qa-btn purple">
-            <i class="fa-solid fa-user-plus"></i> 作業員登録
+          <a href="/stepmap" class="qa-btn purple" onclick="event.preventDefault();window.location='/stepmap'">
+            <i class="fa-solid fa-truck-ramp-box"></i> 搬出入予約
           </a>
         </div>
       </div>
     </div>
 
-    <!-- 現場状況チャート -->
+    <!-- 今週の工程サマリー -->
     <div class="dash-card">
       <div class="card-header">
-        <i class="fa-solid fa-chart-pie"></i> 現場状況サマリー
+        <i class="fa-solid fa-chart-bar"></i> 今週の工程サマリー
       </div>
-      <div class="card-body" style="display:flex;align-items:center;justify-content:center">
-        <canvas id="summaryChart" style="max-height:200px;max-width:300px"></canvas>
+      <div class="card-body" id="week-summary">
+        <div class="empty-state"><i class="fa-solid fa-spinner fa-spin"></i></div>
       </div>
     </div>
 
   </div>
 </div>
+
+<style>
+.kpi-card.purple { background: linear-gradient(135deg, #8E24AA, #6A1B9A); }
+</style>
 {% endblock %}
 
 {% block scripts %}
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
 <script>
-// FAB on dashboard → go to coordination
-window.fabAction = function() { location.href = '/coordination'; };
-
 async function loadDashboard() {
-  const res = await fetch('/api/dashboard');
-  const d = await res.json();
+  const today = new Date().toISOString().slice(0, 10);
 
-  document.getElementById('kpi-workers').textContent   = d.today_workers;
-  document.getElementById('kpi-schedules').textContent = d.today_schedules;
-  document.getElementById('kpi-ky').textContent        = d.pending_ky;
-  document.getElementById('kpi-certs').textContent     = d.expiring_certs;
+  try {
+    // 作業予定
+    const schRes = await fetch(`/api/schedules?date=${today}`);
+    const schedules = await schRes.json();
 
-  // 作業予定
-  const schedDiv = document.getElementById('today-schedules');
-  if (d.recent_schedules.length === 0) {
-    schedDiv.innerHTML = '<div class="empty-state"><i class="fa-solid fa-calendar-xmark"></i> 本日の予定はありません</div>';
-  } else {
-    schedDiv.innerHTML = d.recent_schedules.map(s => `
-      <div class="list-item">
-        <span class="badge blue">${s.company||''}</span>
-        <span style="flex:1;font-size:13px">${s.work_content||''}</span>
-        <span class="text-muted">${s.location||''}</span>
-        <span class="badge green">${s.workers_count||0}名</span>
-      </div>`).join('');
-  }
+    // KPI
+    document.getElementById('kpi-schedules').textContent = schedules.length;
+    const totalWorkers = schedules.reduce((s, x) => s + (x.workers_count || 0), 0);
+    document.getElementById('kpi-workers').textContent = totalWorkers + '名';
 
-  // 資格アラート
-  const certDiv = document.getElementById('cert-alerts');
-  if (d.expiring_details.length === 0) {
-    certDiv.innerHTML = '<div class="empty-state"><i class="fa-solid fa-circle-check"></i> 期限切れ間近の資格はありません</div>';
-  } else {
-    certDiv.innerHTML = d.expiring_details.map(c => `
-      <div class="list-item">
-        <i class="fa-solid fa-exclamation-circle text-orange"></i>
-        <span style="flex:1"><b>${c.name}</b> <span class="text-muted">${c.cert}</span></span>
-        <span class="badge ${c.days<=7?'red':'orange'}">${c.days}日後</span>
-      </div>`).join('');
-  }
-
-  // Chart
-  const ctx = document.getElementById('summaryChart').getContext('2d');
-  new Chart(ctx, {
-    type: 'doughnut',
-    data: {
-      labels: ['入場者','作業予定','未承認KY','資格アラート'],
-      datasets: [{
-        data: [d.today_workers, d.today_schedules, d.pending_ky, d.expiring_certs],
-        backgroundColor: ['#3b82f6','#22c55e','#f97316','#ef4444'],
-        borderWidth: 2, borderColor: '#fff'
-      }]
-    },
-    options: {
-      responsive: true,
-      plugins: { legend: { position: 'bottom', labels: { font: { size: 12 }, padding: 12 } } },
-      cutout: '65%'
+    // 作業予定リスト
+    const schedDiv = document.getElementById('today-schedules');
+    if (schedules.length === 0) {
+      schedDiv.innerHTML = '<div class="empty-state"><i class="fa-solid fa-calendar-xmark"></i> 本日の予定はありません</div>';
+    } else {
+      schedDiv.innerHTML = schedules.map(s => {
+        const color = s.color || '#1E88E5';
+        return `<div class="list-item">
+          <span class="badge" style="background:${color};color:#fff">${s.company || ''}</span>
+          <span style="flex:1;font-size:13px">${s.work_content || ''}</span>
+          <span class="text-muted">${s.location || ''}</span>
+          <span class="badge green">${s.workers_count || 0}名</span>
+        </div>`;
+      }).join('');
     }
-  });
+
+    // 搬出入予約
+    const eqRes = await fetch('/api/equipment');
+    const allEq = await eqRes.json();
+    const todayEq = allEq.filter(e => e.date === today);
+    document.getElementById('kpi-equip').textContent = todayEq.length + '件';
+
+    const eqDiv = document.getElementById('today-equip');
+    if (todayEq.length === 0) {
+      eqDiv.innerHTML = '<div class="empty-state"><i class="fa-solid fa-circle-check"></i> 本日の搬出入予約はありません</div>';
+    } else {
+      const sorted = [...todayEq].sort((a, b) => a.time_start > b.time_start ? 1 : -1);
+      eqDiv.innerHTML = sorted.map(e => `
+        <div class="list-item">
+          <span class="badge blue">${e.equipment}</span>
+          <span style="flex:1;font-size:13px">${e.company}</span>
+          <span class="text-muted">${e.time_start}〜${e.time_end}</span>
+          <span class="badge orange">${e.purpose || '-'}</span>
+        </div>`).join('');
+    }
+
+    // マーカー数
+    const mkRes = await fetch('/api/markers');
+    const markers = await mkRes.json();
+    document.getElementById('kpi-markers').textContent = markers.length + '個';
+
+    // 今週の工程サマリー
+    const weekDiv = document.getElementById('week-summary');
+    // 今日から7日分の日付
+    const days = [];
+    for (let i = 0; i < 7; i++) {
+      const d = new Date(); d.setDate(d.getDate() + i);
+      days.push(d.toISOString().slice(0, 10));
+    }
+    const weekRes = await fetch('/api/schedules');
+    const allSch = await weekRes.json();
+    const WD = ['日', '月', '火', '水', '木', '金', '土'];
+    weekDiv.innerHTML = `
+      <div style="display:flex;gap:4px;overflow-x:auto;padding-bottom:4px;">
+        ${days.map(ds => {
+          const d = new Date(ds);
+          const wd = d.getDay();
+          const cnt = allSch.filter(s => s.date <= ds && (s.date_end ? s.date_end >= ds : s.date === ds)).length;
+          const isToday = ds === today;
+          const wdColor = wd === 0 ? '#e53935' : wd === 6 ? '#1E88E5' : '#475569';
+          return `<div style="flex-shrink:0;text-align:center;padding:6px 8px;
+            border-radius:8px;background:${isToday ? '#1E88E5' : '#f8fafc'};
+            border:2px solid ${isToday ? '#1E88E5' : '#e2e8f0'};min-width:44px;
+            cursor:pointer;" onclick="window.location='/stepmap'">
+            <div style="font-size:.62rem;font-weight:bold;color:${isToday ? '#fff' : wdColor}">${WD[wd]}</div>
+            <div style="font-size:1rem;font-weight:bold;color:${isToday ? '#fff' : '#1e293b'}">${d.getDate()}</div>
+            <div style="font-size:.7rem;font-weight:bold;color:${isToday ? 'rgba(255,255,255,.85)' : (cnt > 0 ? '#43A047' : '#94a3b8')}">${cnt > 0 ? cnt + '件' : '─'}</div>
+          </div>`;
+        }).join('')}
+      </div>`;
+
+  } catch (e) {
+    console.error('Dashboard load error:', e);
+  }
 }
 
 loadDashboard();
