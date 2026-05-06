@@ -1,0 +1,576 @@
+{% extends "base.html" %}
+{% block title %}日報作成 - BuildeeMgr{% endblock %}
+{% block page_title %}<i class="fa-solid fa-envelope"></i> 日報作成{% endblock %}
+
+{% block content %}
+<div class="dr-page">
+
+  <!-- ヘッダー -->
+  <div class="dr-header">
+    <div>
+      <h2 class="dr-title">📧 Construction Daily Report</h2>
+      <p class="dr-sub">BuildeeMgrのデータから日報メールを自動生成します</p>
+    </div>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <input type="date" id="reportDate" value="{{ today }}" onchange="loadData()" class="dr-date-input">
+      <button class="dr-btn-primary" onclick="generateAndCopy()">
+        <i class="fa-solid fa-copy"></i> メール本文をコピー
+      </button>
+    </div>
+  </div>
+
+  <div class="dr-layout">
+
+    <!-- ===== 左：入力フォーム ===== -->
+    <div class="dr-form-col">
+
+      <!-- 件名プレビュー -->
+      <div class="dr-card">
+        <div class="dr-card-hdr">📌 件名</div>
+        <div class="dr-card-body">
+          <div id="subjectPreview" class="dr-subject-preview">---</div>
+          <div style="margin-top:.5rem;display:flex;gap:6px;align-items:center;flex-wrap:wrap;">
+            <label class="dr-label">安全標語：</label>
+            <label class="safety-chk"><input type="checkbox" id="chk_jiko" checked onchange="updateSubject()"> 無事故</label>
+            <label class="safety-chk"><input type="checkbox" id="chk_saigai" checked onchange="updateSubject()"> 無災害</label>
+            <label class="safety-chk"><input type="checkbox" id="chk_busson" checked onchange="updateSubject()"> 物損無</label>
+            <label class="safety-chk"><input type="checkbox" id="chk_sso" checked onchange="updateSubject()"> SSO無</label>
+          </div>
+        </div>
+      </div>
+
+      <!-- 1. 安全 -->
+      <div class="dr-card">
+        <div class="dr-card-hdr">1. 【安全】</div>
+        <div class="dr-card-body">
+          <textarea id="safety_text" rows="3" class="dr-textarea" placeholder="特になし">特になし</textarea>
+        </div>
+      </div>
+
+      <!-- 2. 出面・災害件数 -->
+      <div class="dr-card">
+        <div class="dr-card-hdr">2. 【出面・災害件数・延労働時間】</div>
+        <div class="dr-card-body">
+          <div class="dr-section-title">A：出面</div>
+          <div class="dr-row">
+            <div class="dr-field">
+              <label>本日合計人数</label>
+              <div class="dr-auto-val" id="today_count">---</div>
+              <span class="dr-auto-badge">自動</span>
+            </div>
+            <div class="dr-field">
+              <label>前日までの累計</label>
+              <div class="dr-auto-val" id="prev_cumulative">---</div>
+              <span class="dr-auto-badge">自動</span>
+            </div>
+            <div class="dr-field">
+              <label>本日までの累計</label>
+              <div class="dr-auto-val" id="cumulative">---</div>
+              <span class="dr-auto-badge">自動</span>
+            </div>
+            <div class="dr-field">
+              <label>延べ労働時間（h）</label>
+              <input type="number" id="total_hours" class="dr-input" value="0">
+            </div>
+          </div>
+
+          <div class="dr-section-title" style="margin-top:.75rem;">B：災害・ルール違反件数</div>
+          <table class="dr-table">
+            <thead><tr>
+              <th>災害分類</th><th>当日</th><th>累計</th><th>備考</th>
+            </tr></thead>
+            <tbody>
+              <tr><td>休業災害</td>
+                <td><input type="number" id="d_kyugyo_today" value="0" class="dr-num"></td>
+                <td><input type="number" id="d_kyugyo_total" value="0" class="dr-num"></td>
+                <td><input type="text" id="d_kyugyo_note" class="dr-input-sm" placeholder="直近発生日等"></td>
+              </tr>
+              <tr><td>不休災害</td>
+                <td><input type="number" id="d_fukyu_today" value="0" class="dr-num"></td>
+                <td><input type="number" id="d_fukyu_total" value="1" class="dr-num"></td>
+                <td><input type="text" id="d_fukyu_note" class="dr-input-sm" placeholder="2026/1/12"></td>
+              </tr>
+              <tr><td>物損事故</td>
+                <td><input type="number" id="d_busson_today" value="0" class="dr-num"></td>
+                <td><input type="number" id="d_busson_total" value="0" class="dr-num"></td>
+                <td><input type="text" id="d_busson_note" class="dr-input-sm"></td>
+              </tr>
+              <tr><td>重大ヒヤリハット</td>
+                <td><input type="number" id="d_hiyari_today" value="0" class="dr-num"></td>
+                <td><input type="number" id="d_hiyari_total" value="0" class="dr-num"></td>
+                <td><input type="text" id="d_hiyari_note" class="dr-input-sm"></td>
+              </tr>
+              <tr><td>ルール違反</td>
+                <td><input type="number" id="d_rule_today" value="0" class="dr-num"></td>
+                <td><input type="number" id="d_rule_total" value="0" class="dr-num"></td>
+                <td><input type="text" id="d_rule_note" class="dr-input-sm"></td>
+              </tr>
+              <tr><td>指摘事項</td>
+                <td><input type="number" id="d_shiteki_today" value="0" class="dr-num"></td>
+                <td><input type="number" id="d_shiteki_total" value="34" class="dr-num"></td>
+                <td><input type="text" id="d_shiteki_note" class="dr-input-sm" placeholder="2026/3/16"></td>
+              </tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 3. スケジュール -->
+      <div class="dr-card">
+        <div class="dr-card-hdr">3. 【スケジュール】</div>
+        <div class="dr-card-body">
+          <textarea id="schedule_text" rows="2" class="dr-textarea" placeholder="遅延なし">遅延なし</textarea>
+        </div>
+      </div>
+
+      <!-- 4. 工事管理報告 -->
+      <div class="dr-card">
+        <div class="dr-card-hdr">4. 【工事管理報告】</div>
+        <div class="dr-card-body">
+          <table class="dr-table">
+            <thead><tr><th>作業手順チェック</th><th>件数</th></tr></thead>
+            <tbody>
+              <tr><td>１．最重要注意作業又は最重要監視作業</td><td><input type="number" id="p1" value="0" class="dr-num"></td></tr>
+              <tr><td>２．新規乗込みベンダーor下請け業者における初の作業</td><td><input type="number" id="p2" value="0" class="dr-num"></td></tr>
+              <tr><td>３．着工済ベンダーにおける新たなor追加作業</td><td><input type="number" id="p3" value="0" class="dr-num"></td></tr>
+              <tr><td>４．ヒヤリハット・物損による工事停止の再開後の作業</td><td><input type="number" id="p4" value="0" class="dr-num"></td></tr>
+              <tr><td>５．本日の作業手順変更</td><td><input type="number" id="p5" value="0" class="dr-num"></td></tr>
+            </tbody>
+          </table>
+          <div style="margin-top:.6rem;">
+            <label class="dr-label">【CM→工事会社指示事項】</label>
+            <textarea id="cm_instructions" rows="2" class="dr-textarea" placeholder="例：KYホワイトボードGiftエリアへ移動 朝礼時"></textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- 当日作業報告 -->
+      <div class="dr-card">
+        <div class="dr-card-hdr">
+          📋 当日の作業報告
+          <span class="dr-auto-badge" style="margin-left:auto;">Stepmapから自動取得</span>
+        </div>
+        <div class="dr-card-body" style="padding:0;">
+          <div id="todaySchTable" class="dr-sch-wrap"></div>
+          <div style="padding:.5rem;">
+            <div class="dr-section-title">日中最終業者</div>
+            <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
+              <input type="text" id="last_vendor" class="dr-input" style="flex:1;min-width:140px;" placeholder="例：オークラサービス">
+              <input type="time" id="last_time" class="dr-input" style="width:110px;" value="17:00">
+            </div>
+            <div style="margin-top:.4rem;">
+              <label class="dr-label">安全管理業務最終巡回時刻</label>
+              <input type="time" id="patrol_time" class="dr-input" style="width:110px;" value="17:00">
+            </div>
+          </div>
+          <div style="padding:.5rem;">
+            <div class="dr-section-title">火気作業報告</div>
+            <textarea id="fire_today" rows="2" class="dr-textarea" placeholder="なし">なし</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- 翌日作業予定 -->
+      <div class="dr-card">
+        <div class="dr-card-hdr">
+          📅 次回の作業予定
+          <span class="dr-auto-badge" style="margin-left:auto;">Stepmapから自動取得</span>
+        </div>
+        <div class="dr-card-body" style="padding:0;">
+          <div id="nextSchTable" class="dr-sch-wrap"></div>
+          <div style="padding:.5rem;">
+            <div class="dr-section-title">次回の火気作業予定</div>
+            <textarea id="fire_next" rows="2" class="dr-textarea" placeholder="なし">なし</textarea>
+          </div>
+        </div>
+      </div>
+
+      <!-- 現場状況写真 -->
+      <div class="dr-card">
+        <div class="dr-card-hdr">📷 現場状況写真</div>
+        <div class="dr-card-body">
+          <p style="font-size:.8rem;color:#64748b;margin:0 0 .5rem;">以下の3項目について説明を入力（写真はメール送信時に添付）</p>
+          <div id="photoItems">
+            <div class="photo-item" data-n="1">
+              <div class="photo-item-hdr">
+                <span>1. ≪現地KY立会状況≫</span>
+              </div>
+              <div class="fg-row">
+                <div class="fg"><label>KY実施業者</label><input type="text" class="dr-input pi-vendor" placeholder="例：リョウセイ（現地KY）"></div>
+                <div class="fg"><label>立会者名</label><input type="text" class="dr-input pi-observer" placeholder="例：上田"></div>
+              </div>
+              <div class="fg-row">
+                <div class="fg full"><label>内容</label><textarea rows="2" class="dr-textarea pi-content" placeholder="例：朝一高車搬出、不要な資材も搬出し2Fでの工事開始"></textarea></div>
+              </div>
+            </div>
+            <div class="photo-item" data-n="2">
+              <div class="photo-item-hdr"><span>2. ≪一般作業状況≫</span></div>
+              <div class="fg-row">
+                <div class="fg"><label>業者名</label><input type="text" class="dr-input pi-vendor2" placeholder="例：オークラサービス"></div>
+                <div class="fg"><label>作業場所</label><input type="text" class="dr-input pi-place" placeholder="例：Giftライン"></div>
+              </div>
+              <div class="fg-row">
+                <div class="fg full"><label>作業内容</label><input type="text" class="dr-input pi-work" placeholder="例：コンベア撤去"></div>
+              </div>
+            </div>
+            <div class="photo-item" data-n="3">
+              <div class="photo-item-hdr"><span>3. ≪一般作業状況≫</span></div>
+              <div class="fg-row">
+                <div class="fg"><label>業者名</label><input type="text" class="dr-input pi-vendor2" placeholder="例：オークラサービス"></div>
+                <div class="fg"><label>作業場所</label><input type="text" class="dr-input pi-place" placeholder="例：Giftライン"></div>
+              </div>
+              <div class="fg-row">
+                <div class="fg full"><label>作業内容</label><input type="text" class="dr-input pi-work" placeholder="例：コンベア撤去"></div>
+              </div>
+            </div>
+          </div>
+          <button onclick="addPhotoItem()" class="dr-btn-ghost" style="margin-top:.5rem;">＋ 写真項目を追加</button>
+        </div>
+      </div>
+
+      <!-- 担当者 -->
+      <div class="dr-card">
+        <div class="dr-card-hdr">👤 担当者</div>
+        <div class="dr-card-body">
+          <div class="fg-row">
+            <div class="fg"><label>工事管理業務担当</label>
+              <input type="text" id="mgr1" class="dr-input" value="DL松尾/　CM 渕上、谷口">
+            </div>
+            <div class="fg"><label>CMサポート業務担当</label>
+              <input type="text" id="mgr2" class="dr-input" value="上田">
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div><!-- /form-col -->
+
+    <!-- ===== 右：プレビュー ===== -->
+    <div class="dr-preview-col">
+      <div class="dr-card" style="position:sticky;top:80px;">
+        <div class="dr-card-hdr" style="display:flex;align-items:center;gap:8px;">
+          👁 メール本文プレビュー
+          <button onclick="generateAndCopy()" class="dr-btn-primary" style="margin-left:auto;font-size:.8rem;padding:.3rem .9rem;">
+            <i class="fa-solid fa-copy"></i> コピー
+          </button>
+        </div>
+        <div class="dr-card-body" style="padding:.5rem;">
+          <div id="emailPreview" class="dr-preview-body">
+            ← データを入力するとプレビューが更新されます
+          </div>
+        </div>
+      </div>
+    </div>
+
+  </div><!-- /layout -->
+</div>
+
+<style>
+.dr-page{max-width:1400px;margin:0 auto;}
+.dr-header{display:flex;justify-content:space-between;align-items:flex-start;margin-bottom:1rem;flex-wrap:wrap;gap:.5rem;}
+.dr-title{margin:0 0 2px;font-size:1.3rem;}
+.dr-sub{margin:0;color:#64748b;font-size:.82rem;}
+.dr-date-input{border:1px solid #cbd5e1;border-radius:7px;padding:.4rem .7rem;font-size:.9rem;}
+.dr-btn-primary{padding:.45rem 1.1rem;background:linear-gradient(135deg,#1E88E5,#1565C0);color:#fff;border:none;border-radius:7px;cursor:pointer;font-size:.88rem;font-weight:bold;}
+.dr-btn-ghost{padding:.35rem .9rem;border:1px solid #cbd5e1;border-radius:6px;background:#fff;cursor:pointer;font-size:.82rem;}
+
+.dr-layout{display:grid;grid-template-columns:1fr 400px;gap:1rem;align-items:start;}
+@media(max-width:1100px){.dr-layout{grid-template-columns:1fr;}}
+
+.dr-card{background:#fff;border:1px solid #e2e8f0;border-radius:10px;overflow:hidden;box-shadow:0 1px 5px rgba(0,0,0,.05);margin-bottom:.75rem;}
+.dr-card-hdr{padding:.55rem .85rem;background:#1e293b;color:#fff;font-weight:bold;font-size:.88rem;display:flex;align-items:center;gap:6px;}
+.dr-card-body{padding:.85rem;}
+.dr-auto-badge{background:rgba(30,136,229,.15);color:#1E88E5;font-size:.68rem;padding:1px 6px;border-radius:8px;font-weight:bold;}
+.dr-subject-preview{background:#f0f4f8;border-radius:6px;padding:.5rem .75rem;font-size:.9rem;font-weight:bold;color:#1e293b;word-break:break-all;}
+.safety-chk{display:inline-flex;align-items:center;gap:4px;font-size:.82rem;cursor:pointer;padding:2px 6px;border:1px solid #e2e8f0;border-radius:6px;background:#fff;}
+.safety-chk:hover{background:#EFF6FF;}
+
+.dr-section-title{font-size:.82rem;font-weight:bold;color:#475569;margin-bottom:.4rem;}
+.dr-row{display:flex;flex-wrap:wrap;gap:.65rem;}
+.dr-field{flex:1;min-width:130px;}
+.dr-field label{display:block;font-size:.75rem;color:#64748b;margin-bottom:2px;}
+.dr-auto-val{font-size:1.2rem;font-weight:bold;color:#1E88E5;padding:.2rem 0;}
+
+.dr-table{width:100%;border-collapse:collapse;font-size:.82rem;}
+.dr-table th{background:#1e293b;color:#fff;padding:.4rem .6rem;text-align:left;}
+.dr-table td{padding:.35rem .6rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+.dr-num{width:60px;border:1px solid #cbd5e1;border-radius:4px;padding:.3rem .4rem;font-size:.85rem;text-align:center;}
+.dr-input{width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:.4rem .6rem;font-size:.88rem;box-sizing:border-box;}
+.dr-input-sm{width:100%;border:1px solid #cbd5e1;border-radius:4px;padding:.25rem .4rem;font-size:.78rem;box-sizing:border-box;}
+.dr-textarea{width:100%;border:1px solid #cbd5e1;border-radius:6px;padding:.4rem .6rem;font-size:.88rem;box-sizing:border-box;resize:vertical;font-family:inherit;}
+.dr-label{font-size:.8rem;font-weight:bold;color:#475569;}
+
+.fg-row{display:flex;gap:.65rem;margin-bottom:.55rem;flex-wrap:wrap;}
+.fg{flex:1;min-width:110px;}
+.fg.full{flex:100%;}
+.fg label{display:block;font-size:.78rem;font-weight:bold;color:#475569;margin-bottom:3px;}
+
+/* 作業表 */
+.dr-sch-wrap{overflow-x:auto;}
+.dr-sch-table{width:100%;border-collapse:collapse;font-size:.78rem;}
+.dr-sch-table th{background:#334155;color:#fff;padding:.4rem .5rem;white-space:nowrap;}
+.dr-sch-table td{padding:.35rem .5rem;border-bottom:1px solid #f1f5f9;vertical-align:middle;}
+.dr-sch-table tr:hover td{background:#f8fafc;}
+.dr-empty{padding:1rem;text-align:center;color:#94a3b8;font-size:.85rem;}
+
+/* 写真項目 */
+.photo-item{background:#f8fafc;border:1px solid #e2e8f0;border-radius:8px;padding:.65rem;margin-bottom:.5rem;}
+.photo-item-hdr{font-size:.85rem;font-weight:bold;color:#1e293b;margin-bottom:.5rem;}
+
+/* プレビュー */
+.dr-preview-body{background:#f9f9f9;border:1px solid #e2e8f0;border-radius:6px;padding:.75rem;
+  white-space:pre-wrap;font-family:'Meiryo','MS Gothic',monospace;font-size:.75rem;
+  line-height:1.6;max-height:75vh;overflow-y:auto;color:#1e293b;}
+</style>
+{% endblock %}
+
+{% block scripts %}
+<script>
+const WEEKDAYS_JP = ['日','月','火','水','木','金','土'];
+let _data = null;
+
+// ================================================================
+// データ読み込み
+// ================================================================
+async function loadData(){
+  const date = document.getElementById('reportDate').value;
+  const res = await fetch(`/api/daily-report-data?date=${date}`);
+  _data = await res.json();
+
+  // 出面
+  document.getElementById('today_count').textContent     = _data.today_count + '人';
+  document.getElementById('prev_cumulative').textContent = _data.prev_cumulative.toLocaleString() + '人';
+  document.getElementById('cumulative').textContent      = _data.cumulative.toLocaleString() + '人';
+
+  // 作業表
+  renderSchTable('todaySchTable', _data.today_schedules);
+  renderSchTable('nextSchTable',  _data.next_schedules);
+
+  updateSubject();
+  updatePreview();
+}
+
+// ================================================================
+// 件名
+// ================================================================
+function updateSubject(){
+  const date = document.getElementById('reportDate').value;
+  const d    = new Date(date);
+  const wd   = WEEKDAYS_JP[d.getDay()];
+  const dateStr = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()} ${wd}`;
+
+  const tags = [];
+  if(document.getElementById('chk_jiko').checked)   tags.push('無事故');
+  if(document.getElementById('chk_saigai').checked) tags.push('無災害');
+  if(document.getElementById('chk_busson').checked) tags.push('物損無');
+  if(document.getElementById('chk_sso').checked)    tags.push('SSO無');
+  const safety = tags.length ? `【${tags.join('・')}】` : '';
+
+  const subject = `[HSG1] HSG1 TPE Project Construction Daily Report${dateStr} ${safety}`;
+  document.getElementById('subjectPreview').textContent = subject;
+  updatePreview();
+}
+
+// ================================================================
+// 作業テーブル描画
+// ================================================================
+function renderSchTable(elId, schedules){
+  const el = document.getElementById(elId);
+  if(!schedules || !schedules.length){
+    el.innerHTML = '<div class="dr-empty">データなし</div>';
+    return;
+  }
+  el.innerHTML = `<table class="dr-sch-table">
+    <thead><tr>
+      <th>Function</th><th>工事業者</th><th>階数/エリア</th>
+      <th>工事内容</th><th>人数</th><th>開始</th><th>終了</th>
+    </tr></thead>
+    <tbody>${schedules.map(s=>`<tr>
+      <td>${s.note||'-'}</td>
+      <td style="font-weight:bold;">${s.company}</td>
+      <td>${s.location||'-'}</td>
+      <td>${s.work_content}</td>
+      <td style="text-align:center;">${s.workers_count}</td>
+      <td>${s.time_start||'-'}</td>
+      <td>${s.time_end||'-'}</td>
+    </tr>`).join('')}</tbody>
+  </table>`;
+}
+
+// ================================================================
+// 写真項目追加
+// ================================================================
+let photoCount = 3;
+function addPhotoItem(){
+  photoCount++;
+  const n = photoCount;
+  const el = document.createElement('div');
+  el.className = 'photo-item';
+  el.innerHTML = `
+    <div class="photo-item-hdr"><span>${n}. ≪一般作業状況≫</span>
+      <button onclick="this.closest('.photo-item').remove()" style="float:right;background:none;border:none;color:#e53935;cursor:pointer;font-size:.85rem;">✕ 削除</button>
+    </div>
+    <div class="fg-row">
+      <div class="fg"><label>業者名</label><input type="text" class="dr-input pi-vendor2"></div>
+      <div class="fg"><label>作業場所</label><input type="text" class="dr-input pi-place"></div>
+    </div>
+    <div class="fg-row">
+      <div class="fg full"><label>作業内容</label><input type="text" class="dr-input pi-work"></div>
+    </div>`;
+  document.getElementById('photoItems').appendChild(el);
+}
+
+// ================================================================
+// メール本文生成
+// ================================================================
+function buildMailBody(){
+  if(!_data) return '（データ未読み込み）';
+  const date = document.getElementById('reportDate').value;
+  const d    = new Date(date);
+  const wd   = WEEKDAYS_JP[d.getDay()];
+  const dateStr = `${d.getFullYear()}/${d.getMonth()+1}/${d.getDate()}`;
+
+  const g = id => document.getElementById(id)?.value || '';
+  const n = id => parseInt(document.getElementById(id)?.value)||0;
+
+  // 作業テーブル行生成
+  function schRows(schedules){
+    if(!schedules||!schedules.length) return '　（予定なし）';
+    const header = `Function\t工事業者\t階数\tエリア\t工事内容\t人数\t開始\t終了\n`;
+    const rows = schedules.map(s=>
+      `${s.note||'-'}\t${s.company}\t${s.location||'-'}\t\t${s.work_content}\t${s.workers_count}\t${s.time_start||'-'}\t${s.time_end||'-'}`
+    ).join('\n');
+    return header + rows;
+  }
+
+  // 写真項目
+  let photoText = '';
+  let pn = 0;
+  document.querySelectorAll('.photo-item').forEach((item, i) => {
+    pn++;
+    const ph1 = item.querySelector('.pi-vendor');
+    if(ph1 !== null){
+      // KY立会
+      const vendor   = item.querySelector('.pi-vendor')?.value || '';
+      const observer = item.querySelector('.pi-observer')?.value || '';
+      const content  = item.querySelector('.pi-content')?.value || '';
+      photoText += `\n${pn}. ≪現地KY立会状況≫\nKY実施業者：${vendor}\n立会者名：${observer}\n内容：${content}\n`;
+    } else {
+      const vendor  = item.querySelector('.pi-vendor2')?.value || '';
+      const place   = item.querySelector('.pi-place')?.value || '';
+      const work    = item.querySelector('.pi-work')?.value || '';
+      photoText += `\n${pn}. ≪一般作業状況≫\n業者名：${vendor}\n作業場所：${place}\n作業内容：${work}\n`;
+    }
+  });
+
+  const body = `関係各位
+
+お疲れ様です。
+
+[HSG1] HSG1 TPE Project Construction Daily Report管理報告を致します。
+
+${dateStr}
+
+1. 【安全】
+
+${g('safety_text')}
+
+2. 【出面・災害件数・延労働時間】
+
+A：出面
+本日の合計人数: ${_data.today_count}人
+前日までの累計人数: ${_data.prev_cumulative.toLocaleString()}人
+本日までの累計人数: ${_data.cumulative.toLocaleString()}人
+延べ労働時間: ${g('total_hours')}h
+
+B：災害・ルール違反件数
+災害分類\t当日\t累計\t備考
+休業災害\t${n('d_kyugyo_today')}件\t${n('d_kyugyo_total')}件\t${g('d_kyugyo_note')}
+不休災害\t${n('d_fukyu_today')}件\t${n('d_fukyu_total')}件\t${g('d_fukyu_note')}
+物損事故\t${n('d_busson_today')}件\t${n('d_busson_total')}件\t${g('d_busson_note')}
+重大ヒヤリハット\t${n('d_hiyari_today')}件\t${n('d_hiyari_total')}件\t${g('d_hiyari_note')}
+ルール違反\t${n('d_rule_today')}件\t${n('d_rule_total')}件\t${g('d_rule_note')}
+指摘事項\t${n('d_shiteki_today')}件\t${n('d_shiteki_total')}件\t${g('d_shiteki_note')}
+
+3. 【スケジュール】
+${g('schedule_text')}
+
+4. 【工事管理報告】
+作業手順チェック\t件数
+１．最重要注意作業又は最重要監視作業\t${n('p1')}件
+２．新規乗込みベンダーor下請け業者における初の作業\t${n('p2')}件
+３．着工済ベンダーにおける新たなor追加作業\t${n('p3')}件
+４．ヒヤリハット・物損による工事停止の再開後の作業\t${n('p4')}件
+５．本日の作業手順変更\t${n('p5')}件
+
+【CM→工事会社指示事項】
+${g('cm_instructions')}
+
+当日の作業報告
+${schRows(_data.today_schedules)}
+
+日中最終業者 【${g('last_vendor')}】 終了時刻 【${g('last_time')}】
+安全管理業務最終巡回時刻 【${g('patrol_time')}】
+
+火気作業報告
+${g('fire_today')}
+
+─────────────────────────────────────────
+
+次回の作業予定
+${schRows(_data.next_schedules)}
+
+次回の火気作業予定
+${g('fire_next')}
+
+現場状況写真
+以下の${document.querySelectorAll('.photo-item').length}項目について写真と説明を添付
+${photoText}
+
+工事管理業務担当　：${g('mgr1')}
+CMサポート業務担当：${g('mgr2')}`;
+
+  return body;
+}
+
+// ================================================================
+// プレビュー更新
+// ================================================================
+function updatePreview(){
+  const body = buildMailBody();
+  document.getElementById('emailPreview').textContent = body;
+}
+
+// ================================================================
+// コピー
+// ================================================================
+async function generateAndCopy(){
+  const subject = document.getElementById('subjectPreview').textContent;
+  const body    = buildMailBody();
+  const full    = `件名: ${subject}\n\n${body}`;
+  try{
+    await navigator.clipboard.writeText(full);
+    showToast('メール本文をクリップボードにコピーしました！','success');
+  }catch(e){
+    // fallback
+    const ta = document.createElement('textarea');
+    ta.value = full;
+    document.body.appendChild(ta);
+    ta.select();
+    document.execCommand('copy');
+    document.body.removeChild(ta);
+    showToast('コピーしました','success');
+  }
+}
+
+// ================================================================
+// 入力変更時にプレビュー更新
+// ================================================================
+document.addEventListener('DOMContentLoaded',()=>{
+  loadData();
+  // 全入力変更をウォッチ
+  document.querySelector('.dr-page').addEventListener('input', updatePreview);
+  document.querySelector('.dr-page').addEventListener('change', updatePreview);
+});
+</script>
+{% endblock %}

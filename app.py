@@ -358,6 +358,41 @@ def stepmap():
     companies = db.get_companies()
     return render_template('stepmap.html', today=today, companies=companies)
 
+@app.route('/daily-report')
+@login_required
+def daily_report():
+    today = date.today().isoformat()
+    return render_template('daily_report.html', today=today)
+
+@app.route('/api/daily-report-data')
+@login_required
+def api_daily_report_data():
+    """日報用データ: 当日・翌日の作業予定+累計人数"""
+    from datetime import date as dt, timedelta
+    target = request.args.get('date', dt.today().isoformat())
+    next_day = (dt.fromisoformat(target) + timedelta(days=1)).isoformat()
+
+    today_sch  = db.get_schedules(target)
+    next_sch   = db.get_schedules(next_day)
+
+    # 累計人数（全期間の workers_count 合計）
+    with db.get_conn() as conn:
+        prev_total = conn.execute(
+            "SELECT COALESCE(SUM(workers_count),0) FROM work_schedules WHERE date < ?",
+            (target,)
+        ).fetchone()[0]
+        today_total = sum(s['workers_count'] for s in today_sch)
+
+    return jsonify({
+        'date': target,
+        'next_date': next_day,
+        'today_schedules': today_sch,
+        'next_schedules': next_sch,
+        'today_count': today_total,
+        'prev_cumulative': int(prev_total),
+        'cumulative': int(prev_total) + today_total,
+    })
+
 
 @app.route('/ky')
 @login_required
